@@ -1,0 +1,181 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "主窗口：自绘标题栏的窗口操作（destroy 用于关窗前先保存历史记录）；网络请求允许所有公网 http/https（研究 Agent 按需读取来源网页全文），本机与内网地址拒绝，重定向逐跳检查（tauri.conf.json 的 scopeRedirects）；外链交给系统浏览器",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-destroy",
+    "opener:allow-open-url",
+    "opener:allow-default-urls",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://*"
+        },
+        {
+          "url": "http://*"
+        }
+      ],
+      "deny": [
+        {
+          "url": "http://localhost"
+        },
+        {
+          "url": "http://*.localhost"
+        },
+        {
+          "url": "http://*.local"
+        },
+        {
+          "url": "http://*.internal"
+        },
+        {
+          "url": "http://127.*"
+        },
+        {
+          "url": "http://10.*"
+        },
+        {
+          "url": "http://192.168.*"
+        },
+        {
+          "url": "http://169.254.*"
+        },
+        {
+          "url": "http://0.*"
+        },
+        {
+          "url": "http://172.16.*"
+        },
+        {
+          "url": "http://172.17.*"
+        },
+        {
+          "url": "http://172.18.*"
+        },
+        {
+          "url": "http://172.19.*"
+        },
+        {
+          "url": "http://172.20.*"
+        },
+        {
+          "url": "http://172.21.*"
+        },
+        {
+          "url": "http://172.22.*"
+        },
+        {
+          "url": "http://172.23.*"
+        },
+        {
+          "url": "http://172.24.*"
+        },
+        {
+          "url": "http://172.25.*"
+        },
+        {
+          "url": "http://172.26.*"
+        },
+        {
+          "url": "http://172.27.*"
+        },
+        {
+          "url": "http://172.28.*"
+        },
+        {
+          "url": "http://172.29.*"
+        },
+        {
+          "url": "http://172.30.*"
+        },
+        {
+          "url": "http://172.31.*"
+        },
+        {
+          "url": "https://localhost"
+        },
+        {
+          "url": "https://*.localhost"
+        },
+        {
+          "url": "https://*.local"
+        },
+        {
+          "url": "https://*.internal"
+        },
+        {
+          "url": "https://127.*"
+        },
+        {
+          "url": "https://10.*"
+        },
+        {
+          "url": "https://192.168.*"
+        },
+        {
+          "url": "https://169.254.*"
+        },
+        {
+          "url": "https://0.*"
+        },
+        {
+          "url": "https://172.16.*"
+        },
+        {
+          "url": "https://172.17.*"
+        },
+        {
+          "url": "https://172.18.*"
+        },
+        {
+          "url": "https://172.19.*"
+        },
+        {
+          "url": "https://172.20.*"
+        },
+        {
+          "url": "https://172.21.*"
+        },
+        {
+          "url": "https://172.22.*"
+        },
+        {
+          "url": "https://172.23.*"
+        },
+        {
+          "url": "https://172.24.*"
+        },
+        {
+          "url": "https://172.25.*"
+        },
+        {
+          "url": "https://172.26.*"
+        },
+        {
+          "url": "https://172.27.*"
+        },
+        {
+          "url": "https://172.28.*"
+        },
+        {
+          "url": "https://172.29.*"
+        },
+        {
+          "url": "https://172.30.*"
+        },
+        {
+          "url": "https://172.31.*"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 17531
+    },
+    {
+      "name": "dev-mock",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "17532", "--strictPort"],
+      "port": 17532
+    }
+  ]
+}

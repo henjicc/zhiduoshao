@@ -1,0 +1,27 @@
+[package]
+name = "zhiduoshao"
+version = "0.1.0"
+description = "知多少：一张会生长的知识地图"
+edition = "2021"
+
+[lib]
+name = "zhiduoshao_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-http = "2"
+tauri-plugin-opener = "2"
+# 导出 Markdown 时弹出系统的「另存为」对话框（只在 Rust 侧使用，界面不能直接访问文件系统）
+tauri-plugin-dialog = "2"
+# tauri.conf.json 里有插件配置（plugins.http.scopeRedirects）时，generate_context! 生成的代码需要它
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

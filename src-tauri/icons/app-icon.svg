@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- 「卡片之树」：一张回答卡片连出两张延伸卡片，和画布本身一样。墨色配色：白底、墨色主卡、石板灰为当前方向 -->
+  <rect width="1024" height="1024" rx="228" fill="#ffffff"/>
+  <rect x="6" y="6" width="1012" height="1012" rx="222" fill="none" stroke="#18181b" stroke-opacity="0.08" stroke-width="12"/>
+  <g fill="none" stroke="#18181b" stroke-width="30" stroke-linecap="round">
+    <path d="M520 512C600 512 600 330 660 330"/>
+    <path d="M520 512C600 512 600 694 660 694"/>
+  </g>
+  <rect x="170" y="356" width="350" height="312" rx="56" fill="#18181b"/>
+  <rect x="230" y="440" width="190" height="34" rx="17" fill="#ffffff"/>
+  <rect x="230" y="510" width="230" height="26" rx="13" fill="#ffffff" opacity="0.5"/>
+  <rect x="230" y="560" width="160" height="26" rx="13" fill="#ffffff" opacity="0.5"/>
+  <rect x="660" y="262" width="210" height="136" rx="40" fill="#6b7586"/>
+  <rect x="675" y="641" width="180" height="106" rx="32" fill="none" stroke="#18181b" stroke-width="30"/>
+</svg>

@@ -1,0 +1,55 @@
+.workspace { position: fixed; inset: 0; overflow: hidden; }
+/* 不经过页面切换直接挂载时才自己淡入；经过切换时由 View Transition 负责（见 lib/transition.ts） */
+.workspace.enter-self { animation: fade var(--t-mid) var(--ease) both; }
+
+.topbar {
+  position: absolute; z-index: 20; top: 0; left: 0; right: 0;
+  height: var(--topbar-h);
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 12px 0 14px;
+  user-select: none;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(10px);
+}
+.topbar-back { flex: none; color: var(--ink-2); }
+.topbar-sep { width: var(--hair); height: 16px; background: var(--line-strong); flex: none; }
+.crumbs { display: flex; align-items: center; min-width: 0; flex: 1; overflow: hidden; }
+.crumb-item { display: flex; align-items: center; min-width: 0; }
+.crumb {
+  max-width: 220px; padding: 4px 8px; border-radius: var(--r-sm);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: var(--fs-md); color: var(--ink-3);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.crumb:hover { background: var(--surface-hover); color: var(--ink); }
+.crumb[aria-current="true"] { color: var(--ink); font-weight: 500; }
+.crumb-sep { color: var(--ink-4); }
+.topbar-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+/* 有窗口按钮时贴右边缘，并与操作区隔开 */
+.topbar:has(.window-controls) { padding-right: 0; }
+.topbar .window-controls { margin-left: 8px; }
+
+/* 外框 10px、内边距 4px，里面的按钮 6px 圆角，保持同心 */
+.zoom {
+  position: absolute; z-index: 10; right: 16px; bottom: 16px;
+  display: flex; align-items: center; gap: 2px; padding: 4px;
+  background: var(--surface); border: var(--hair) solid var(--line-strong); border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
+  transition: right var(--t-mid) var(--ease), opacity var(--t-fast);
+}
+.zoom.with-drawer { right: calc(var(--drawer-w) + 16px); }
+.zoom-value { min-width: 48px; height: 28px; border-radius: var(--r-sm); font: 500 var(--fs-sm) var(--font-mono); color: var(--ink-2); }
+.zoom-value:hover { background: var(--surface-hover); }
+.zoom-sep { width: var(--hair); height: 16px; background: var(--line); margin: 0 3px; }
+
+@media (max-width: 720px) {
+  /* 窄窗口时侧边栏占满，覆盖 Workspace 上按设置写入的宽度 */
+  .workspace { --drawer-w: 100% !important; }
+  .topbar { padding: 0 8px 0 10px; gap: 8px; }
+  .crumb { max-width: 120px; }
+  .topbar-actions .toggle-label, .topbar-actions .btn-label {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .topbar-actions .btn { padding: 0 8px; }
+  .zoom.with-drawer { right: 16px; opacity: 0; pointer-events: none; }
+}

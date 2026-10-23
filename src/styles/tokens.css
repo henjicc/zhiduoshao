@@ -1,0 +1,336 @@
+/* 设计令牌：颜色、字号、尺寸、动效的唯一入口
+   颜色全部取自 Radix Colors（文件下半部分的色阶），按它的分阶用法映射成下面的语义令牌：
+   1–2 背景，3–5 控件底色（常态 / 悬停 / 按下），6–8 线条（分隔 / 控件边框 / 悬停与焦点），
+   9–10 实色（9 常态、10 悬停），11–12 文字（11 次要、12 主要）。组件里只用语义令牌，不直接写色值或色阶。
+   明暗：默认跟随系统；设置里选了浅色 / 深色时 html 带 data-theme。色阶的深色块写两遍（系统深色且没选浅色一份、选了深色一份），两份必须一致 */
+:root {
+  color-scheme: light;
+
+  /* 页面与容器：画布用 2，卡片、面板、弹层用 1（浅色下比画布亮一层） */
+  --bg: var(--gray-2);
+  --bg-dot: var(--gray-6);
+  --surface: var(--gray-1);
+  --surface-sunken: var(--gray-3);
+  --surface-hover: var(--gray-3);
+  --surface-active: var(--gray-4);
+  /* 文字：主要 12、次要 11；10 只用于辅助信息，8 只用于占位符、禁用与装饰 */
+  --ink: var(--gray-12);
+  --ink-2: var(--gray-11);
+  --ink-3: var(--gray-10);
+  --ink-4: var(--gray-8);
+  /* 线条：用半透明的灰阶（a 阶），压在任何底色上都偏柔和；能用间距分组的地方不画线 */
+  --line: var(--gray-a4);
+  --line-strong: var(--gray-a5);
+  --line-hover: var(--gray-a6);
+  --edge: var(--gray-7);
+  --edge-active: var(--gray-10);
+  /* 强调：文字与图标 11，实色 9（上面的字用 --on-solid），淡底 a3，描边与焦点 a8 */
+  --accent: var(--accent-11);
+  --accent-solid: var(--accent-9);
+  --accent-solid-hover: var(--accent-10);
+  --accent-soft: var(--accent-a3);
+  --accent-mark: var(--accent-a5);
+  --accent-line: var(--accent-a8);
+  --on-solid: #fff; /* Radix 的 accent-contrast：实色上的文字 */
+  /* 危险：终止、删除与错误，单独用 red */
+  --danger: #ce2c31;       /* red-11 */
+  --danger-solid: #e5484d; /* red-9 */
+  --danger-soft: #f3000d14;  /* red-a3 */
+  --danger-line: #df000356;  /* red-a7 */
+  /* 深色底上的浅色元素（提示气泡、轻提示、大图查看） */
+  --inverse-soft: rgba(255, 255, 255, 0.15);  /* white-a3 */
+  --inverse-hover: rgba(255, 255, 255, 0.2);  /* white-a4 */
+  --overlay: rgba(0, 0, 0, 0.8);              /* black-a10 */
+  --overlay-text: rgba(255, 255, 255, 0.7);   /* white-a9 */
+  --overlay-hover: rgba(255, 255, 255, 0.15); /* white-a3 */
+  --overlay-chip: rgba(0, 0, 0, 0.6);         /* black-a8 */
+  --scrim: color-mix(in srgb, var(--bg) 60%, transparent);
+  --scroll-thumb: var(--gray-a5);
+  --scroll-thumb-hover: var(--gray-a8);
+
+  /* 无 favicon 时的来源字块底色：各中性色阶的 11 阶，不随配色和明暗变化 */
+  --tile-1: #60646c; /* slate-11 */
+  --tile-2: #5f6563; /* sage-11 */
+  --tile-3: #65636d; /* mauve-11 */
+  --tile-4: #60655f; /* olive-11 */
+  --tile-5: #63635e; /* sand-11 */
+  --tile-6: #646464; /* gray-11 */
+
+  /* 智能卡片里的图表：构成（环形图）用固定分类色，按顺序取用：blue、tomato、jade、violet、pink，浅色取 10 阶、深色取 9 阶
+     （已用 dataviz 校验脚本验证两套：亮度带、彩度、色弱区分、对卡片底色的对比度）；
+     单一系列（柱状、折线）用 --viz-accent：默认墨色方案的强调色是灰，图表改用 blue；其他配色方案用各自强调色 */
+  --viz-1: #0588f0;
+  --viz-2: #dd4425;
+  --viz-3: #26997b;
+  --viz-4: #654dc4;
+  --viz-5: #cf3897;
+  --viz-accent: var(--viz-1);
+  --visual-bg: #e6f4fe; /* blue-3 */
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.05);  /* black-a1 */
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.05), 0 6px 20px -8px rgba(0, 0, 0, 0.15);   /* black-a1、a3 */
+  --shadow-3: 0 2px 6px rgba(0, 0, 0, 0.05), 0 24px 56px -16px rgba(0, 0, 0, 0.2);  /* black-a1、a4 */
+
+  /* 全站一套无衬线。-apple-system 只在苹果系统生效，即苹方；其他系统依次找 HarmonyOS Sans、MiSans（字重全），
+     再是另装的苹方、微软雅黑。苹方必须排在 HarmonyOS 之后：有的 Windows 也装了苹方（实测），会抢在前面。不加载网络字体 */
+  --font-ui: -apple-system, "HarmonyOS Sans SC", "HarmonyOS Sans", "MiSans", "MiSans VF", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  /* 字号只有四档，最小 12px；层级不够时用字重、颜色和间距拉开，不再加字号 */
+  --fs-sm: 12px;   /* 辅助信息、标签、角标、图表标注 */
+  --fs-md: 13px;   /* 界面正文、按钮、列表、输入框 */
+  --fs-lg: 15px;   /* 卡片问题与结论、阅读正文、对话框标题 */
+  --fs-xl: 20px;   /* 详情与总结的大标题、关键数字 */
+  --read-size: var(--fs-lg);
+  --read-lh: 1.85;
+  --read-track: 0.01em;
+
+  /* 线条一律 0.5px（焦点环除外） */
+  --hair: 0.5px;
+  /* 圆角四档；嵌套时内层 = 外层 − 间距：6 外 2 内 → 4，10 外 4 内 → 6，14 外 4 内 → 10 */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+
+  --topbar-h: 52px;
+  --titlebar-h: 40px;
+  --drawer-w: 420px;
+  --card-w: 380px;
+  --pill-w: 260px;
+
+  /* 动效：只留解释状态变化的（出现、展开、移动、加载），基础 250ms ease-out；悬停变色更短；退场用 --ease-in 并取更短一档 */
+  --ease: cubic-bezier(0.215, 0.61, 0.355, 1); /* ease-out */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --t-fast: 150ms;  /* 悬停、按下、退场 */
+  --t-mid: 250ms;   /* 出现、展开、面板、对话框 */
+  /* 生成中的内容（状态切换、思考流、正文浮现）和卡片伸缩：用户要求从容、丝滑，比界面动效慢得多，单独一组 */
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1); /* 起步快、收尾很长 */
+  --t-swap-in: 1000ms;   /* 状态文字：新的一句浮上来 */
+  --t-swap-out: 700ms;   /* 状态文字：旧的一句退出 */
+  --t-ink: 1100ms;       /* 思考流里新写出的字 */
+  --t-focus: 700ms;      /* 正文一小段从轻微模糊对上焦 */
+  --t-reveal: 1600ms;    /* 正文一小段的不透明度慢慢上来 */
+  --t-grow: 900ms;       /* 卡片高度跟着内容伸缩 */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: var(--gray-1);
+    --surface: var(--gray-2);
+    --surface-hover: var(--gray-4);
+    --surface-sunken: var(--gray-3);
+    --surface-active: var(--gray-5);
+    --danger: #ff9592;
+    --danger-soft: #ff173f2d;
+    --danger-line: #ff536184;
+    --inverse-soft: rgba(0, 0, 0, 0.15);   /* black-a3：深色主题下提示气泡是浅底 */
+    --inverse-hover: rgba(0, 0, 0, 0.2);
+    --viz-1: #0090ff;
+    --viz-2: #e54d2e;
+    --viz-3: #29a383;
+    --viz-4: #6e56cf;
+    --viz-5: #d6409f;
+    --visual-bg: #111927; /* blue-2 */
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+    --shadow-3: 0 2px 6px rgba(0, 0, 0, 0.3), 0 24px 56px -16px rgba(0, 0, 0, 0.7);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: var(--gray-1);
+  --surface: var(--gray-2);
+  --surface-hover: var(--gray-4);
+  --surface-sunken: var(--gray-3);
+  --surface-active: var(--gray-5);
+  --danger: #ff9592;
+  --danger-soft: #ff173f2d;
+  --danger-line: #ff536184;
+  --inverse-soft: rgba(0, 0, 0, 0.15);
+  --inverse-hover: rgba(0, 0, 0, 0.2);
+  --viz-1: #0090ff;
+  --viz-2: #e54d2e;
+  --viz-3: #29a383;
+  --viz-4: #6e56cf;
+  --viz-5: #d6409f;
+  --visual-bg: #111927;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 2px 6px rgba(0, 0, 0, 0.3), 0 24px 56px -16px rgba(0, 0, 0, 0.7);
+}
+
+/* 其他配色方案的图表：单一系列用强调色，卡片底色用强调色阶的淡层（浅色 3 阶、深色 2 阶） */
+:root[data-palette] { --viz-accent: var(--accent-10); --visual-bg: var(--accent-3); }
+@media (prefers-color-scheme: dark) {
+  :root[data-palette]:not([data-theme="light"]) { --viz-accent: var(--accent-9); --visual-bg: var(--accent-2); }
+}
+:root[data-palette][data-theme="dark"] { --viz-accent: var(--accent-9); --visual-bg: var(--accent-2); }
+
+/* ---------- 色阶：Radix Colors（@radix-ui/colors 3.0.0），默认墨色 = slate 灰阶 + slate 强调 ---------- */
+:root {
+  --gray-1: #fcfcfd; --gray-2: #f9f9fb; --gray-3: #f0f0f3; --gray-4: #e8e8ec; --gray-5: #e0e1e6; --gray-6: #d9d9e0;
+  --gray-7: #cdced6; --gray-8: #b9bbc6; --gray-9: #8b8d98; --gray-10: #80838d; --gray-11: #60646c; --gray-12: #1c2024;
+  --gray-a3: #0000330f; --gray-a4: #00002d17; --gray-a5: #0009321f; --gray-a6: #00002f26; --gray-a8: #00083046;
+  --accent-1: #fcfcfd; --accent-2: #f9f9fb; --accent-3: #f0f0f3; --accent-4: #e8e8ec; --accent-5: #e0e1e6; --accent-6: #d9d9e0;
+  --accent-7: #cdced6; --accent-8: #b9bbc6; --accent-9: #8b8d98; --accent-10: #80838d; --accent-11: #60646c; --accent-12: #1c2024;
+  --accent-a3: #0000330f; --accent-a4: #00002d17; --accent-a5: #0009321f; --accent-a8: #00083046;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --gray-1: #111113; --gray-2: #18191b; --gray-3: #212225; --gray-4: #272a2d; --gray-5: #2e3135; --gray-6: #363a3f;
+    --gray-7: #43484e; --gray-8: #5a6169; --gray-9: #696e77; --gray-10: #777b84; --gray-11: #b0b4ba; --gray-12: #edeef0;
+    --gray-a3: #ddeaf814; --gray-a4: #d3edf81d; --gray-a5: #d9edfe25; --gray-a6: #d6ebfd30; --gray-a8: #d9edff5d;
+    --accent-1: #111113; --accent-2: #18191b; --accent-3: #212225; --accent-4: #272a2d; --accent-5: #2e3135; --accent-6: #363a3f;
+    --accent-7: #43484e; --accent-8: #5a6169; --accent-9: #696e77; --accent-10: #777b84; --accent-11: #b0b4ba; --accent-12: #edeef0;
+    --accent-a3: #ddeaf814; --accent-a4: #d3edf81d; --accent-a5: #d9edfe25; --accent-a8: #d9edff5d;
+  }
+}
+:root[data-theme="dark"] {
+  --gray-1: #111113; --gray-2: #18191b; --gray-3: #212225; --gray-4: #272a2d; --gray-5: #2e3135; --gray-6: #363a3f;
+  --gray-7: #43484e; --gray-8: #5a6169; --gray-9: #696e77; --gray-10: #777b84; --gray-11: #b0b4ba; --gray-12: #edeef0;
+  --gray-a3: #ddeaf814; --gray-a4: #d3edf81d; --gray-a5: #d9edfe25; --gray-a6: #d6ebfd30; --gray-a8: #d9edff5d;
+  --accent-1: #111113; --accent-2: #18191b; --accent-3: #212225; --accent-4: #272a2d; --accent-5: #2e3135; --accent-6: #363a3f;
+  --accent-7: #43484e; --accent-8: #5a6169; --accent-9: #696e77; --accent-10: #777b84; --accent-11: #b0b4ba; --accent-12: #edeef0;
+  --accent-a3: #ddeaf814; --accent-a4: #d3edf81d; --accent-a5: #d9edfe25; --accent-a8: #d9edff5d;
+}
+
+/* 靛青：slate 灰阶 + indigo 强调 */
+:root[data-palette="indigo"] {
+  --gray-1: #fcfcfd; --gray-2: #f9f9fb; --gray-3: #f0f0f3; --gray-4: #e8e8ec; --gray-5: #e0e1e6; --gray-6: #d9d9e0;
+  --gray-7: #cdced6; --gray-8: #b9bbc6; --gray-9: #8b8d98; --gray-10: #80838d; --gray-11: #60646c; --gray-12: #1c2024;
+  --gray-a3: #0000330f; --gray-a4: #00002d17; --gray-a5: #0009321f; --gray-a6: #00002f26; --gray-a8: #00083046;
+  --accent-1: #fdfdfe; --accent-2: #f7f9ff; --accent-3: #edf2fe; --accent-4: #e1e9ff; --accent-5: #d2deff; --accent-6: #c1d0ff;
+  --accent-7: #abbdf9; --accent-8: #8da4ef; --accent-9: #3e63dd; --accent-10: #3358d4; --accent-11: #3a5bc7; --accent-12: #1f2d5c;
+  --accent-a3: #0047f112; --accent-a4: #0044ff1e; --accent-a5: #0044ff2d; --accent-a8: #0034dc72;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="indigo"]:not([data-theme="light"]) {
+    --gray-1: #111113; --gray-2: #18191b; --gray-3: #212225; --gray-4: #272a2d; --gray-5: #2e3135; --gray-6: #363a3f;
+    --gray-7: #43484e; --gray-8: #5a6169; --gray-9: #696e77; --gray-10: #777b84; --gray-11: #b0b4ba; --gray-12: #edeef0;
+    --gray-a3: #ddeaf814; --gray-a4: #d3edf81d; --gray-a5: #d9edfe25; --gray-a6: #d6ebfd30; --gray-a8: #d9edff5d;
+    --accent-1: #11131f; --accent-2: #141726; --accent-3: #182449; --accent-4: #1d2e62; --accent-5: #253974; --accent-6: #304384;
+    --accent-7: #3a4f97; --accent-8: #435db1; --accent-9: #3e63dd; --accent-10: #5472e4; --accent-11: #9eb1ff; --accent-12: #d6e1ff;
+    --accent-a3: #2f62ff3c; --accent-a4: #3566ff57; --accent-a5: #4171fd6b; --accent-a8: #5b81feac;
+  }
+}
+:root[data-palette="indigo"][data-theme="dark"] {
+  --gray-1: #111113; --gray-2: #18191b; --gray-3: #212225; --gray-4: #272a2d; --gray-5: #2e3135; --gray-6: #363a3f;
+  --gray-7: #43484e; --gray-8: #5a6169; --gray-9: #696e77; --gray-10: #777b84; --gray-11: #b0b4ba; --gray-12: #edeef0;
+  --gray-a3: #ddeaf814; --gray-a4: #d3edf81d; --gray-a5: #d9edfe25; --gray-a6: #d6ebfd30; --gray-a8: #d9edff5d;
+  --accent-1: #11131f; --accent-2: #141726; --accent-3: #182449; --accent-4: #1d2e62; --accent-5: #253974; --accent-6: #304384;
+  --accent-7: #3a4f97; --accent-8: #435db1; --accent-9: #3e63dd; --accent-10: #5472e4; --accent-11: #9eb1ff; --accent-12: #d6e1ff;
+  --accent-a3: #2f62ff3c; --accent-a4: #3566ff57; --accent-a5: #4171fd6b; --accent-a8: #5b81feac;
+}
+
+/* 石青：sage 灰阶 + teal 强调 */
+:root[data-palette="teal"] {
+  --gray-1: #fbfdfc; --gray-2: #f7f9f8; --gray-3: #eef1f0; --gray-4: #e6e9e8; --gray-5: #dfe2e0; --gray-6: #d7dad9;
+  --gray-7: #cbcfcd; --gray-8: #b8bcba; --gray-9: #868e8b; --gray-10: #7c8481; --gray-11: #5f6563; --gray-12: #1a211e;
+  --gray-a3: #002d1e11; --gray-a4: #001f1519; --gray-a5: #00180820; --gray-a6: #00140d28; --gray-a8: #000f0847;
+  --accent-1: #fafefd; --accent-2: #f3fbf9; --accent-3: #e0f8f3; --accent-4: #ccf3ea; --accent-5: #b8eae0; --accent-6: #a1ded2;
+  --accent-7: #83cdc1; --accent-8: #53b9ab; --accent-9: #12a594; --accent-10: #0d9b8a; --accent-11: #008573; --accent-12: #0d3d38;
+  --accent-a3: #00c69d1f; --accent-a4: #00c39633; --accent-a5: #00b49047; --accent-a8: #009783ac;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="teal"]:not([data-theme="light"]) {
+    --gray-1: #101211; --gray-2: #171918; --gray-3: #202221; --gray-4: #272a29; --gray-5: #2e3130; --gray-6: #373b39;
+    --gray-7: #444947; --gray-8: #5b625f; --gray-9: #63706b; --gray-10: #717d79; --gray-11: #adb5b2; --gray-12: #eceeed;
+    --gray-a3: #f3f5f412; --gray-a4: #f2fefd1a; --gray-a5: #f1fbfa22; --gray-a6: #edfbf42d; --gray-a8: #ebfdf657;
+    --accent-1: #0d1514; --accent-2: #111c1b; --accent-3: #0d2d2a; --accent-4: #023b37; --accent-5: #084843; --accent-6: #145750;
+    --accent-7: #1c6961; --accent-8: #207e73; --accent-9: #12a594; --accent-10: #0eb39e; --accent-11: #0bd8b6; --accent-12: #adf0dd;
+    --accent-a3: #00ffe61e; --accent-a4: #00ffe92d; --accent-a5: #00ffea3b; --accent-a8: #32ffe775;
+  }
+}
+:root[data-palette="teal"][data-theme="dark"] {
+  --gray-1: #101211; --gray-2: #171918; --gray-3: #202221; --gray-4: #272a29; --gray-5: #2e3130; --gray-6: #373b39;
+  --gray-7: #444947; --gray-8: #5b625f; --gray-9: #63706b; --gray-10: #717d79; --gray-11: #adb5b2; --gray-12: #eceeed;
+  --gray-a3: #f3f5f412; --gray-a4: #f2fefd1a; --gray-a5: #f1fbfa22; --gray-a6: #edfbf42d; --gray-a8: #ebfdf657;
+  --accent-1: #0d1514; --accent-2: #111c1b; --accent-3: #0d2d2a; --accent-4: #023b37; --accent-5: #084843; --accent-6: #145750;
+  --accent-7: #1c6961; --accent-8: #207e73; --accent-9: #12a594; --accent-10: #0eb39e; --accent-11: #0bd8b6; --accent-12: #adf0dd;
+  --accent-a3: #00ffe61e; --accent-a4: #00ffe92d; --accent-a5: #00ffea3b; --accent-a8: #32ffe775;
+}
+
+/* 松绿：sage 灰阶 + jade 强调 */
+:root[data-palette="pine"] {
+  --gray-1: #fbfdfc; --gray-2: #f7f9f8; --gray-3: #eef1f0; --gray-4: #e6e9e8; --gray-5: #dfe2e0; --gray-6: #d7dad9;
+  --gray-7: #cbcfcd; --gray-8: #b8bcba; --gray-9: #868e8b; --gray-10: #7c8481; --gray-11: #5f6563; --gray-12: #1a211e;
+  --gray-a3: #002d1e11; --gray-a4: #001f1519; --gray-a5: #00180820; --gray-a6: #00140d28; --gray-a8: #000f0847;
+  --accent-1: #fbfefd; --accent-2: #f4fbf7; --accent-3: #e6f7ed; --accent-4: #d6f1e3; --accent-5: #c3e9d7; --accent-6: #acdec8;
+  --accent-7: #8bceb6; --accent-8: #56ba9f; --accent-9: #29a383; --accent-10: #26997b; --accent-11: #208368; --accent-12: #1d3b31;
+  --accent-a3: #00ae4819; --accent-a4: #00a85129; --accent-a5: #00a2553c; --accent-a8: #00976ea9;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="pine"]:not([data-theme="light"]) {
+    --gray-1: #101211; --gray-2: #171918; --gray-3: #202221; --gray-4: #272a29; --gray-5: #2e3130; --gray-6: #373b39;
+    --gray-7: #444947; --gray-8: #5b625f; --gray-9: #63706b; --gray-10: #717d79; --gray-11: #adb5b2; --gray-12: #eceeed;
+    --gray-a3: #f3f5f412; --gray-a4: #f2fefd1a; --gray-a5: #f1fbfa22; --gray-a6: #edfbf42d; --gray-a8: #ebfdf657;
+    --accent-1: #0d1512; --accent-2: #121c18; --accent-3: #0f2e22; --accent-4: #0b3b2c; --accent-5: #114837; --accent-6: #1b5745;
+    --accent-7: #246854; --accent-8: #2a7e68; --accent-9: #29a383; --accent-10: #27b08b; --accent-11: #1fd8a4; --accent-12: #adf0d4;
+    --accent-a3: #02f99920; --accent-a4: #00ffaa2d; --accent-a5: #11ffb63b; --accent-a8: #48ffcf75;
+  }
+}
+:root[data-palette="pine"][data-theme="dark"] {
+  --gray-1: #101211; --gray-2: #171918; --gray-3: #202221; --gray-4: #272a29; --gray-5: #2e3130; --gray-6: #373b39;
+  --gray-7: #444947; --gray-8: #5b625f; --gray-9: #63706b; --gray-10: #717d79; --gray-11: #adb5b2; --gray-12: #eceeed;
+  --gray-a3: #f3f5f412; --gray-a4: #f2fefd1a; --gray-a5: #f1fbfa22; --gray-a6: #edfbf42d; --gray-a8: #ebfdf657;
+  --accent-1: #0d1512; --accent-2: #121c18; --accent-3: #0f2e22; --accent-4: #0b3b2c; --accent-5: #114837; --accent-6: #1b5745;
+  --accent-7: #246854; --accent-8: #2a7e68; --accent-9: #29a383; --accent-10: #27b08b; --accent-11: #1fd8a4; --accent-12: #adf0d4;
+  --accent-a3: #02f99920; --accent-a4: #00ffaa2d; --accent-a5: #11ffb63b; --accent-a8: #48ffcf75;
+}
+
+/* 胭脂：mauve 灰阶 + crimson 强调 */
+:root[data-palette="rouge"] {
+  --gray-1: #fdfcfd; --gray-2: #faf9fb; --gray-3: #f2eff3; --gray-4: #eae7ec; --gray-5: #e3dfe6; --gray-6: #dbd8e0;
+  --gray-7: #d0cdd7; --gray-8: #bcbac7; --gray-9: #8e8c99; --gray-10: #84828e; --gray-11: #65636d; --gray-12: #211f26;
+  --gray-a3: #30004010; --gray-a4: #20003618; --gray-a5: #20003820; --gray-a6: #14003527; --gray-a8: #08003145;
+  --accent-1: #fffcfd; --accent-2: #fef7f9; --accent-3: #ffe9f0; --accent-4: #fedce7; --accent-5: #facedd; --accent-6: #f3bed1;
+  --accent-7: #eaacc3; --accent-8: #e093b2; --accent-9: #e93d82; --accent-10: #df3478; --accent-11: #cb1d63; --accent-12: #621639;
+  --accent-a3: #ff005216; --accent-a4: #f8005123; --accent-a5: #e5004f31; --accent-a8: #b6004a6c;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="rouge"]:not([data-theme="light"]) {
+    --gray-1: #121113; --gray-2: #1a191b; --gray-3: #232225; --gray-4: #2b292d; --gray-5: #323035; --gray-6: #3c393f;
+    --gray-7: #49474e; --gray-8: #625f69; --gray-9: #6f6d78; --gray-10: #7c7a85; --gray-11: #b5b2bc; --gray-12: #eeeef0;
+    --gray-a3: #ebeaf814; --gray-a4: #eee5f81d; --gray-a5: #efe6fe25; --gray-a6: #f1e6fd30; --gray-a8: #eee7ff5d;
+    --accent-1: #191114; --accent-2: #201318; --accent-3: #381525; --accent-4: #4d122f; --accent-5: #5c1839; --accent-6: #6d2545;
+    --accent-7: #873356; --accent-8: #b0436e; --accent-9: #e93d82; --accent-10: #ee518a; --accent-11: #ff92ad; --accent-12: #fdd3e8;
+    --accent-a3: #fe2a8b2a; --accent-a4: #fd158741; --accent-a5: #fd278f51; --accent-a8: #fe5b9bab;
+  }
+}
+:root[data-palette="rouge"][data-theme="dark"] {
+  --gray-1: #121113; --gray-2: #1a191b; --gray-3: #232225; --gray-4: #2b292d; --gray-5: #323035; --gray-6: #3c393f;
+  --gray-7: #49474e; --gray-8: #625f69; --gray-9: #6f6d78; --gray-10: #7c7a85; --gray-11: #b5b2bc; --gray-12: #eeeef0;
+  --gray-a3: #ebeaf814; --gray-a4: #eee5f81d; --gray-a5: #efe6fe25; --gray-a6: #f1e6fd30; --gray-a8: #eee7ff5d;
+  --accent-1: #191114; --accent-2: #201318; --accent-3: #381525; --accent-4: #4d122f; --accent-5: #5c1839; --accent-6: #6d2545;
+  --accent-7: #873356; --accent-8: #b0436e; --accent-9: #e93d82; --accent-10: #ee518a; --accent-11: #ff92ad; --accent-12: #fdd3e8;
+  --accent-a3: #fe2a8b2a; --accent-a4: #fd158741; --accent-a5: #fd278f51; --accent-a8: #fe5b9bab;
+}
+
+/* 黛紫：mauve 灰阶 + violet 强调 */
+:root[data-palette="plum"] {
+  --gray-1: #fdfcfd; --gray-2: #faf9fb; --gray-3: #f2eff3; --gray-4: #eae7ec; --gray-5: #e3dfe6; --gray-6: #dbd8e0;
+  --gray-7: #d0cdd7; --gray-8: #bcbac7; --gray-9: #8e8c99; --gray-10: #84828e; --gray-11: #65636d; --gray-12: #211f26;
+  --gray-a3: #30004010; --gray-a4: #20003618; --gray-a5: #20003820; --gray-a6: #14003527; --gray-a8: #08003145;
+  --accent-1: #fdfcfe; --accent-2: #faf8ff; --accent-3: #f4f0fe; --accent-4: #ebe4ff; --accent-5: #e1d9ff; --accent-6: #d4cafe;
+  --accent-7: #c2b5f5; --accent-8: #aa99ec; --accent-9: #6e56cf; --accent-10: #654dc4; --accent-11: #6550b9; --accent-12: #2f265f;
+  --accent-a3: #4400ee0f; --accent-a4: #4300ff1b; --accent-a5: #3600ff26; --accent-a8: #2b00d066;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="plum"]:not([data-theme="light"]) {
+    --gray-1: #121113; --gray-2: #1a191b; --gray-3: #232225; --gray-4: #2b292d; --gray-5: #323035; --gray-6: #3c393f;
+    --gray-7: #49474e; --gray-8: #625f69; --gray-9: #6f6d78; --gray-10: #7c7a85; --gray-11: #b5b2bc; --gray-12: #eeeef0;
+    --gray-a3: #ebeaf814; --gray-a4: #eee5f81d; --gray-a5: #efe6fe25; --gray-a6: #f1e6fd30; --gray-a8: #eee7ff5d;
+    --accent-1: #14121f; --accent-2: #1b1525; --accent-3: #291f43; --accent-4: #33255b; --accent-5: #3c2e69; --accent-6: #473876;
+    --accent-7: #56468b; --accent-8: #6958ad; --accent-9: #6e56cf; --accent-10: #7d66d9; --accent-11: #baa7ff; --accent-12: #e2ddfe;
+    --accent-a3: #8354fe36; --accent-a4: #7d51fd50; --accent-a5: #845ffd5f; --accent-a8: #977dfea8;
+  }
+}
+:root[data-palette="plum"][data-theme="dark"] {
+  --gray-1: #121113; --gray-2: #1a191b; --gray-3: #232225; --gray-4: #2b292d; --gray-5: #323035; --gray-6: #3c393f;
+  --gray-7: #49474e; --gray-8: #625f69; --gray-9: #6f6d78; --gray-10: #7c7a85; --gray-11: #b5b2bc; --gray-12: #eeeef0;
+  --gray-a3: #ebeaf814; --gray-a4: #eee5f81d; --gray-a5: #efe6fe25; --gray-a6: #f1e6fd30; --gray-a8: #eee7ff5d;
+  --accent-1: #14121f; --accent-2: #1b1525; --accent-3: #291f43; --accent-4: #33255b; --accent-5: #3c2e69; --accent-6: #473876;
+  --accent-7: #56468b; --accent-8: #6958ad; --accent-9: #6e56cf; --accent-10: #7d66d9; --accent-11: #baa7ff; --accent-12: #e2ddfe;
+  --accent-a3: #8354fe36; --accent-a4: #7d51fd50; --accent-a5: #845ffd5f; --accent-a8: #977dfea8;
+}

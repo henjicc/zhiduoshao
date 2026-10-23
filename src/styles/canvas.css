@@ -1,0 +1,277 @@
+.stage {
+  position: absolute; inset: 0;
+  cursor: grab; touch-action: none; user-select: none;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--bg-dot) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+}
+.stage.is-panning { cursor: grabbing; }
+.stage.is-marquee { cursor: crosshair; }
+.world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+/* 自动移动视角（让节点进入视野、适应窗口）：镜头移动比界面动效慢，用户实测 420ms 偏快，是唯一的例外 */
+.world.glide { transition: transform 600ms var(--ease); }
+/* 只在平移缩放过程中提升为合成图层（Canvas.tsx 的 is-moving）：过程中流畅，停下后撤掉、按最终比例重绘保证清晰 */
+.world.is-moving { will-change: transform; }
+.edges { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; }
+
+.edge {
+  fill: none; stroke: var(--edge); stroke-width: 1.25;
+  transition: d var(--t-mid) var(--ease), stroke var(--t-fast), opacity var(--t-fast);
+}
+/* 普通连线 pathLength=1：整条线是一段虚线，靠偏移做出“生长”效果，说明新节点从哪里长出来 */
+.edge:not(.is-link) { stroke-dasharray: 1; animation: draw var(--t-mid) var(--ease) backwards; }
+.edge.on-path { stroke: var(--edge-active); stroke-width: 1.5; }
+.edge.is-link { stroke: var(--accent-line); stroke-dasharray: 4 4; }
+/* 对比节点：点线连回原节点，和综合节点的虚线区分 */
+.edge.is-compare { stroke: var(--ink-4); stroke-dasharray: 1 5; stroke-linecap: round; stroke-width: 1.6; }
+.edge.dim { opacity: 0.5; }
+.stage.is-dragging .edge { transition: stroke var(--t-fast), opacity var(--t-fast); }
+@keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+.marquee {
+  position: fixed; z-index: 5; pointer-events: none;
+  border: var(--hair) solid var(--accent-line); background: var(--accent-soft);
+}
+.marquee.is-closing { animation: fade-out var(--t-fast) var(--ease-in) both; }
+
+/* ---------- 节点 ---------- */
+/* 不要常驻 will-change: transform：图层会一直按创建时的比例栅格化，画布放大后只是拉伸位图，停下来也发虚 */
+.node { position: absolute; left: 0; top: 0; opacity: 0; }
+.node.is-placed {
+  opacity: 1;
+  transition: transform var(--t-mid) var(--ease), opacity var(--t-fast);
+  animation: pop var(--t-mid) var(--ease) backwards;
+}
+.stage.is-dragging .node { transition: opacity var(--t-fast); }
+/* 不在当前路径上的节点退后一层：回答卡片对比度高，淡一些也看得清；
+   延伸问题本身字色就浅，只轻微变淡，保证别的方向一直读得到，引导用户换个方向继续问 */
+.node.dim { opacity: 0.55; }
+.node.dim.is-question { opacity: 0.8; }
+.node.dim:hover { opacity: 1; }
+@keyframes pop { from { opacity: 0; scale: 0.97; } to { opacity: 1; scale: 1; } }
+
+.card {
+  width: var(--card-w);
+  background: var(--surface);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+  padding: 16px 18px 14px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+/* 卡片高度跟着内容平滑伸缩（NodeView 的 useSmoothHeight 设外层高度，过渡追过去）；布局按里层的最终高度排 */
+.card-shell { overflow: hidden; transition: height var(--t-grow) var(--ease-soft); }
+.card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-2); }
+/* 拖到另一个节点上：目标卡片描边、上方浮出提示，松手就连起来。用图表色（--viz-accent）而不是主题色：默认墨色方案的主题色是灰，提示不够醒目 */
+.node.is-drop-target { z-index: 5; }
+.node.is-drop-target .card { border-color: var(--viz-accent); box-shadow: 0 0 0 4px var(--visual-bg), var(--shadow-2); }
+.node.is-drop-target::before {
+  content: "松手连接"; position: absolute; left: 50%; bottom: calc(100% + 10px); translate: -50% 0;
+  padding: 4px 12px; border-radius: 999px; white-space: nowrap; pointer-events: none;
+  font-size: var(--fs-sm); font-weight: 500; color: var(--on-solid); background: var(--viz-accent);
+  animation: fade var(--t-fast) var(--ease) both;
+}
+/* 标题行拖动节点，正文可以选中复制（判定见 Canvas.tsx 的 DRAG_HANDLE） */
+.card:not(.is-loading) :is(.card-q, .card-tag, .card-images) { cursor: grab; }
+.stage.is-dragging .card-q { cursor: grabbing; }
+.card :is(.card-a, .points, .visual, .card-error-text) { user-select: text; cursor: text; }
+.card:focus-visible { border-color: var(--accent-line); }
+.node.is-active .card { border-color: var(--line-hover); box-shadow: var(--shadow-2); }
+.node.is-selected .card { border-color: var(--accent-solid); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* 卡片标签：方向、综合、对比、出错，只在有信息时出现 */
+.card-tag {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+  font: 500 var(--fs-sm)/1 var(--font-ui); color: var(--ink-3);
+}
+.card-tag::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--ink-4); }
+.card-tag.is-link { color: var(--accent); }
+.card-tag.is-link::before { background: var(--accent-solid); }
+/* 对比标签：联网用强调色实心点，不联网用灰色空心点 */
+.card-tag.is-compare { color: var(--accent); }
+.card-tag.is-compare::before { background: var(--accent-solid); }
+.card-tag.is-compare.is-offline { color: var(--ink-3); }
+.card-tag.is-compare.is-offline::before { background: none; box-shadow: inset 0 0 0 var(--hair) var(--ink-3); }
+.card-tag.is-error { color: var(--danger); }
+.card-tag.is-error::before { background: var(--danger-solid); }
+.card-images { display: flex; gap: 4px; margin-bottom: 8px; }
+.card-images img { width: 40px; height: 40px; object-fit: cover; border-radius: var(--r-xs); box-shadow: inset 0 0 0 var(--hair) var(--line); display: block; }
+.card-q { margin: 0; font-size: var(--fs-lg); font-weight: 600; line-height: 1.5; letter-spacing: 0.01em; color: var(--ink); }
+/* 结论是用户第一眼要看的答案：中等字重、墨色，与灰色的要点拉开层级 */
+.card-a { margin: 8px 0 0; font: 500 var(--fs-lg)/1.75 var(--font-ui); letter-spacing: var(--read-track); color: var(--ink); }
+/* 看着答出来的卡片：结论攒一点再按小段浮现（smoothText.ts），每段先从轻微模糊对上焦、再慢慢变实；
+   模糊只 1.5px、只在前半程，主要靠不透明度，字不会被糊大。前后几段的动画叠在一起，读起来是一道柔和往前推的波 */
+.ph { animation: ph-opacity var(--t-reveal) cubic-bezier(0.33, 0, 0.2, 1) both, ph-focus var(--t-focus) ease-out both; }
+@keyframes ph-opacity { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ph-focus { from { filter: blur(1.5px); } to { filter: blur(0); } }
+.card.is-live :is(.visual, .card-memory, .card-more) { animation: ph-opacity var(--t-reveal) var(--ease-soft) both; }
+.card.is-live .points li::before { animation: ph-opacity var(--t-reveal) var(--ease-soft) both; }
+/* ---------- 智能卡片：结论下方的图表 / 表格 / 时间线 / 关键数字 ----------
+   底色是图表色阶的淡层（--visual-bg），单一系列的图形用 --viz-accent（默认方案为 blue，其他方案为强调色），构成用固定分类色（--viz-n）；文字一律用墨色令牌 */
+.visual { margin: 12px 0 0; padding: 12px 14px 14px; border-radius: var(--r-sm); background: var(--visual-bg); }
+.visual-head { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; font-size: var(--fs-sm); font-weight: 600; color: var(--ink-2); }
+.visual-head .lucide { flex: none; color: var(--viz-accent); }
+.visual-cite { margin-left: 3px; white-space: nowrap; }
+.visual-cite .cite + .cite { margin-left: 2px; }
+.visual-cite-more { margin-left: 2px; font: 500 var(--fs-sm)/1 var(--font-mono); color: var(--ink-3); }
+
+/* 表格 */
+.visual-scroll { overflow-x: auto; margin: 0 -2px; }
+.visual table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); line-height: 1.5; font-variant-numeric: tabular-nums; }
+.visual th, .visual td { padding: 6px 10px 6px 0; text-align: left; vertical-align: top; color: var(--ink-2); }
+.visual thead th { padding-top: 0; font-weight: 500; color: var(--ink-3); white-space: nowrap; border-bottom: var(--hair) solid var(--line-strong); }
+.visual tbody tr + tr > * { border-top: var(--hair) solid var(--line); } /* 表格行线保留：没有它多列数据对不齐 */
+.visual tbody th { font-weight: 600; color: var(--ink); }
+.visual .visual-cites { padding-right: 0; white-space: nowrap; text-align: right; }
+
+/* 时间线：左侧一条细轨，节点是图表色圆点（带底色描边圈） */
+.visual-timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.visual-timeline li { position: relative; display: grid; gap: 1px; padding-left: 18px; }
+.visual-timeline li::before { content: ""; position: absolute; left: 0; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--viz-accent); box-shadow: 0 0 0 2px var(--visual-bg); z-index: 1; }
+/* 连到下一个圆点：从本圆点下方到下一项圆点上方（列表间距 10px + 圆点上边距 5px） */
+.visual-timeline li:not(:last-child)::after { content: ""; position: absolute; left: 3.75px; top: 15px; bottom: -13px; width: var(--hair); background: var(--line-strong); }
+.visual-time { font-size: var(--fs-sm); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.visual-event { font-size: var(--fs-sm); line-height: 1.6; color: var(--ink-2); }
+
+/* 关键数字：两列，大号数值；靠字号和间距分组，不加竖线 */
+.visual-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; margin: 0; }
+.visual-stats dt { font-size: var(--fs-sm); line-height: 1.4; color: var(--ink-3); }
+.visual-stats dd { margin: 4px 0 0; font-size: var(--fs-xl); line-height: 1.25; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.visual-stats dd .cite { vertical-align: 3px; }
+
+/* 柱状图：柱子不超过 8px 粗，数据端圆角、基线端方角；突出项之外的柱子变灰 */
+.visual-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.visual-bars li { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 4px 10px; }
+.visual-bar-label { min-width: 0; font-size: var(--fs-sm); color: var(--ink-2); }
+.visual-bar-value { font-size: var(--fs-sm); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.visual-bar-track { grid-column: 1 / -1; height: 8px; border-radius: 0 var(--r-xs) var(--r-xs) 0; background: var(--gray-a3); }
+.visual-bar-fill { display: block; height: 100%; border-radius: inherit; background: var(--viz-accent); }
+.visual-bars li.is-muted .visual-bar-fill { background: var(--ink-4); }
+.visual-bars li.is-muted .visual-bar-value { color: var(--ink-2); font-weight: 500; }
+
+/* 折线图：2px 线、10% 面积淡层、端点圆点带底色圈；上方显示当前（悬停）点的数值 */
+.visual-line-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+.visual-line-value { font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.01em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.visual-line-x { font-size: var(--fs-sm); color: var(--ink-3); }
+.visual-line-cites { margin-left: auto; }
+.visual-line { display: block; width: 100%; height: auto; overflow: visible; }
+.visual-line-area { fill: var(--viz-accent); opacity: 0.1; }
+.visual-line-path { fill: none; stroke: var(--viz-accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.visual-line-dot { fill: var(--viz-accent); stroke: var(--visual-bg); stroke-width: 2; }
+.visual-line-cross { stroke: var(--line-strong); stroke-width: 0.5; }
+.visual-line-label { font-size: var(--fs-sm); fill: var(--ink-2); font-variant-numeric: tabular-nums; }
+.visual-line-hit { fill: transparent; cursor: crosshair; }
+.visual-line-axis { display: flex; justify-content: space-between; margin-top: 4px; font-size: var(--fs-sm); color: var(--ink-3); }
+
+/* 环形图：从正上方顺时针，切片间 2px 底色缝；图例带数值 */
+.visual-donut { display: grid; grid-template-columns: 84px 1fr; align-items: center; gap: 14px; }
+.visual-donut svg { width: 84px; height: 84px; display: block; }
+.visual-donut-seg { fill: none; stroke-width: 12; transform: rotate(-90deg); transform-origin: 44px 44px; }
+.visual-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; min-width: 0; }
+.visual-legend li { display: grid; grid-template-columns: 8px 1fr auto; align-items: center; gap: 8px; font-size: var(--fs-sm); }
+.visual-legend i { width: 8px; height: 8px; border-radius: 50%; }
+.visual-legend-label { min-width: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.visual-legend-value { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.visual-legend-share { margin-left: 6px; font-weight: 400; color: var(--ink-3); }
+
+/* 这次回答用到的个人记忆：要点下方一行小字，图标与历史地图链接用强调色 */
+.card-memory { display: flex; align-items: flex-start; gap: 6px; margin-top: 10px; font-size: var(--fs-sm); line-height: 1.6; color: var(--ink-3); }
+.card-memory .lucide { flex: none; margin-top: 2px; color: var(--accent); }
+.card-memory-text { display: inline-flex; flex-wrap: wrap; column-gap: 12px; }
+.card-memory-link { font: inherit; color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--accent-line); text-underline-offset: 3px; text-align: left; }
+.card-memory-link:hover { color: var(--accent); }
+
+/* 要点下方的详解入口 */
+.card-more { margin-top: 8px; font-size: var(--fs-sm); color: var(--ink-3); }
+.card-more:hover { color: var(--accent); }
+
+.card-meta {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 14px;
+}
+.card-meta .meta { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-actions { display: flex; gap: 2px; opacity: 0; transition: opacity var(--t-fast); }
+.card:hover .card-actions, .node.is-active .card-actions, .card:focus-within .card-actions { opacity: 1; }
+.card-actions .icon-btn { width: 24px; height: 24px; border-radius: var(--r-xs); }
+
+.card-error {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-top: 10px; font-size: var(--fs-sm); color: var(--ink-2);
+}
+.card-error-actions { display: flex; gap: 6px; flex: none; }
+.card-error:has(.card-error-hint) { flex-wrap: wrap; }
+.card-error-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.card-error-hint { display: block; font-size: var(--fs-sm); line-height: 1.6; color: var(--ink-3); }
+.btn-sm { height: 26px; padding: 0 9px; font-size: var(--fs-sm); gap: 5px; flex: none; }
+
+.collapse-badge {
+  /* 放在卡片外、连线起点上（标题行高度，见 layout.ts 的 EDGE_TOP），不压住卡片里的文字 */
+  position: absolute; top: 27px; left: calc(100% + 4px); translate: 0 -50%;
+  display: inline-flex; align-items: center; justify-content: center; gap: 1px;
+  min-width: 22px; height: 22px; padding: 0 5px; border-radius: 999px;
+  background: var(--surface); border: var(--hair) solid var(--line-strong);
+  font: 500 var(--fs-sm)/1 var(--font-mono); color: var(--ink-3);
+  opacity: 0; transition: opacity var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+.node:hover .collapse-badge, .collapse-badge.is-collapsed, .collapse-badge:focus-visible { opacity: 1; }
+.collapse-badge:hover { color: var(--ink); border-color: var(--ink-3); }
+
+/* 加载中：飘过的来源 + 思考流 */
+.card.is-loading { cursor: default; }
+.status { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: var(--fs-sm); color: var(--ink-3); }
+/* 状态文字：新旧两句叠在同一行上叠化（StatusText），旧的上移淡出、新的从下面浮上来，不留空白 */
+.status-swap { position: relative; flex: 1; min-width: 0; height: 20px; }
+.status-swap > span { position: absolute; left: 0; top: 0; max-width: 100%; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status-swap > .is-in { animation: swap-in var(--t-swap-in) var(--ease-soft) 100ms both; }
+.status-swap > .is-out { animation: swap-out var(--t-swap-out) var(--ease-soft) both; }
+@keyframes swap-in { from { opacity: 0; filter: blur(1.5px); transform: translateY(6px); } 50% { filter: blur(0); } to { opacity: 1; filter: blur(0); transform: none; } }
+@keyframes swap-out { to { opacity: 0; filter: blur(1.5px); transform: translateY(-6px); } }
+.ticker {
+  position: relative; width: 72px; height: 16px; overflow: hidden; flex: none;
+  mask-image: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent);
+}
+.ticker .fav { position: absolute; top: 0; left: 100%; animation: drift 1800ms linear infinite both; }
+@keyframes drift { from { transform: translateX(0); } to { transform: translateX(-96px); } }
+.card-skeleton { margin-top: 12px; }
+.card-thinking { margin-top: 10px; }
+
+/* 延伸问题 */
+.pill {
+  display: flex; align-items: flex-start; gap: 10px;
+  width: var(--pill-w); padding: 9px 12px;
+  border: var(--hair) solid var(--line); border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  text-align: left;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.pill:hover { background: var(--surface); border-color: var(--line-hover); }
+.pill-dir { flex: none; width: 40px; white-space: nowrap; padding-top: 1px; font: 500 var(--fs-sm)/1.5 var(--font-ui); color: var(--ink-4); }
+.pill-q { flex: 1; font-size: var(--fs-md); line-height: 1.55; color: var(--ink-2); }
+.pill:hover .pill-q { color: var(--ink); }
+.pill-go { margin-top: 2px; color: var(--ink-4); opacity: 0; transition: opacity var(--t-fast); }
+.pill:hover .pill-go, .pill:focus-visible .pill-go { opacity: 1; color: var(--accent); }
+
+/* 延伸列表底部的输入框 */
+.edge.is-slot { stroke-dasharray: 3 4; opacity: 0.6; animation: none; }
+.slot {
+  display: flex; align-items: center; gap: 8px;
+  width: var(--pill-w); padding: 4px 4px 4px 12px;
+  border: var(--hair) dashed var(--line-strong); border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.slot:focus-within { border-style: solid; border-color: var(--ink-3); background: var(--surface); }
+.slot-icon { flex: none; color: var(--ink-4); }
+.slot input { flex: 1; min-width: 0; height: 30px; border: 0; outline: 0; background: none; font-size: var(--fs-md); color: var(--ink); }
+.slot input::placeholder { color: var(--ink-4); }
+.slot-send { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-sm); color: var(--ink-4); transition: color var(--t-fast), background var(--t-fast); }
+.slot-send:not(:disabled):hover { color: var(--accent); background: var(--surface-hover); }
+.slot-send:disabled { opacity: 0.4; }
+.slot.is-busy .slot-icon { color: var(--accent); }
+.world.lod-far .slot { display: none; }
+
+/* 缩小时只显示标题：画布缩小后字也跟着变小，这里用大一档补回来 */
+.world.lod-far :is(.card-images, .card-a, .card-meta, .points, .status, .card-skeleton, .card-thinking, .card-error, .pill-dir) { display: none; }
+.world.lod-far .card-q, .world.lod-far .pill-q { font-size: var(--fs-xl); }
