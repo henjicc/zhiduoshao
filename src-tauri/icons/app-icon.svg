@@ -1,15 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- 「卡片之树」：一张回答卡片连出两张延伸卡片，和画布本身一样。墨色配色：白底、墨色主卡、石板灰为当前方向 -->
-  <rect width="1024" height="1024" rx="228" fill="#ffffff"/>
-  <rect x="6" y="6" width="1012" height="1012" rx="222" fill="none" stroke="#18181b" stroke-opacity="0.08" stroke-width="12"/>
-  <g fill="none" stroke="#18181b" stroke-width="30" stroke-linecap="round">
-    <path d="M520 512C600 512 600 330 660 330"/>
-    <path d="M520 512C600 512 600 694 660 694"/>
-  </g>
-  <rect x="170" y="356" width="350" height="312" rx="56" fill="#18181b"/>
-  <rect x="230" y="440" width="190" height="34" rx="17" fill="#ffffff"/>
-  <rect x="230" y="510" width="230" height="26" rx="13" fill="#ffffff" opacity="0.5"/>
-  <rect x="230" y="560" width="160" height="26" rx="13" fill="#ffffff" opacity="0.5"/>
-  <rect x="660" y="262" width="210" height="136" rx="40" fill="#6b7586"/>
-  <rect x="675" y="641" width="180" height="106" rx="32" fill="none" stroke="#18181b" stroke-width="30"/>
+  <!-- 「左一右二」三方块交错叠压：右上压住左边墨色大块，大块压住右下。全中性配色：白底、墨、石板灰、浅石板灰 -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e9ecf1"/></linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3a42"/><stop offset="1" stop-color="#111114"/></linearGradient>
+    <linearGradient id="slate" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8590a3"/><stop offset="1" stop-color="#5a6375"/></linearGradient>
+    <linearGradient id="mist" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c3c9d3"/><stop offset="1" stop-color="#9aa3b2"/></linearGradient>
+    <linearGradient id="hl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".38" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <filter id="sh" x="-25%" y="-25%" width="150%" height="160%"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000" flood-opacity=".26"/></filter>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <rect x="6" y="6" width="1012" height="1012" rx="222" fill="none" stroke="#0f0f14" stroke-opacity=".14" stroke-width="12"/>
+  <g filter="url(#sh)"><rect x="520" y="588" width="290" height="280" rx="72" fill="url(#mist)"/></g>
+  <rect x="524" y="592" width="282" height="272" rx="68" fill="none" stroke="url(#hl)" stroke-width="8"/>
+  <g filter="url(#sh)"><rect x="132" y="318" width="452" height="452" rx="104" fill="url(#ink)"/></g>
+  <rect x="136" y="322" width="444" height="444" rx="100" fill="none" stroke="url(#hl)" stroke-width="8"/>
+  <g filter="url(#sh)"><rect x="496" y="156" width="396" height="344" rx="88" fill="url(#slate)"/></g>
+  <rect x="500" y="160" width="388" height="336" rx="84" fill="none" stroke="url(#hl)" stroke-width="8"/>
 </svg>
