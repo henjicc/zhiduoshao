@@ -1,6 +1,6 @@
 import { ArrowUp, CircleAlert, ImagePlus, Settings } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { IN_APP } from "../core/http.ts";
+import { CAN_FETCH } from "../core/http.ts";
 import { defaultImageQuestion } from "../lib/image.ts";
 import { morphToCard, swapScreen } from "../lib/transition.ts";
 import { AttachmentStrip, hasFiles, useAttachments } from "./Attachments.tsx";
@@ -60,7 +60,7 @@ export function Home() {
   };
 
   const problem =
-    !IN_APP && !MOCK_MODE ? "浏览器无法直接调用腾讯接口，请在桌面应用中使用"
+    !CAN_FETCH && !MOCK_MODE ? "浏览器无法直接调用腾讯接口，请在桌面应用中使用"
     : !ready ? (search ? "使用前请先填写 TokenHub 与元宝搜索的 API Key" : "使用前请先填写 TokenHub API Key")
     : null;
 
@@ -125,7 +125,7 @@ export function Home() {
           <p className="home-status" role="status">
             <CircleAlert size={14} strokeWidth={1.8} />
             <span>{problem}</span>
-            {IN_APP && <button type="button" className="link-btn" onClick={settingsActions.open}>去设置</button>}
+            {CAN_FETCH && <button type="button" className="link-btn" onClick={settingsActions.open}>去设置</button>}
           </p>
         )}
         <RecentList />

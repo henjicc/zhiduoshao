@@ -9,6 +9,7 @@ template_state: ready
 - 产品：「知多少」，一张会生长的知识地图。用户输入问题，先得到有来源、有时效的答案；系统再从答案延伸出具体问题（主动替用户提问），用户点开问题继续得到答案，逐层展开成画布上的知识树。
 - 产品形态：Tauri 2 桌面应用（Windows 安装包分发），没有任何后端服务。用户在应用「设置」里填写自己的 API Key，应用在本机直接请求腾讯接口。
   - 不做纯网页版的原因：元宝搜索与 TokenHub 均不允许浏览器跨域调用（2026-10 实测预检分别返回 403 / 405），网页无法直连；用户已明确不要服务器或转发。
+  - 唯一例外是开发工具（2026-10-29 加）：开发时（`npm run dev`）浏览器里的请求由 Vite 开发服务器转发。它只存在于开发服务器上、只给开发与演示录制用，不对用户发布；发布版和桌面应用（含 `app:dev`）的请求路径不变，不能借它做网页版或给用户提供转发。
 - 接入范围：只接入腾讯：大模型为混元（TokenHub 按量 API Key），搜索为元宝搜索（服务 API Key）。这是腾讯项目的约束。
 - 已确认的核心交互：
   - 问题 → 答案 → 延伸问题（只有标题，点开才检索）→ 答案，循环往复；任意答案可追问。
@@ -86,7 +87,7 @@ template_state: ready
   - 示例供应商（`mock.ts` / `mock-data.ts`）只在开发环境且 `VITE_PROVIDERS=mock` 时启用，不得作为真实供应商失败时的回退；发布版本始终使用真实服务。
 - 页面切换动画（[`lib/transition.ts`](../src/lib/transition.ts)）：打开历史、回首页用 View Transitions 交叉淡入；首页提问用 `morphToCard`：首页克隆成残影淡出，一个外壳从提问框连续形变（位置、尺寸、圆角、阴影）到第一张卡片：几何逐帧追踪真实卡片的当前位置（第一张卡片以纵向中心为锚点，加载中内容变化会让它上下移动，只瞄准起点位置会在落位时跳一下），落位后外壳在真实卡片上方再淡出 160ms 交接，内容层交叉缩放淡入淡出，落位后换成真实卡片（形变期间 `[data-morph]` 隐藏真实卡片）。新挂载的画布在挂载时读取 `screenTransition()` 定下进场类（`enter-self` / `enter-vt` / `enter-hero`）并保持不变；不要再用 `[data-vt]` 属性去关进场动画，否则过渡结束移除属性时动画会从透明重播，整页闪一下。
 - 网络与原生能力（可信边界）：
-  - 请求经 [`src/core/http.ts`](../src/core/http.ts) 在桌面应用里走 Tauri HTTP 插件，普通浏览器里用原生 fetch（只能跑示例模式）。
+  - 请求经 [`src/core/http.ts`](../src/core/http.ts) 在桌面应用里走 Tauri HTTP 插件；开发时的浏览器里经 [`devNet.ts`](../src/core/devNet.ts) 交给 Vite 开发服务器转发（`vite.config.ts` 的 `/__zds/net`：只收本页面发来的请求，真实状态码与响应头放在 `x-zds-status` / `x-zds-headers` 里，转发本身总回 200，免得浏览器自己跟随重定向；流式响应边收边转）；发布版在普通浏览器里不能发真实请求（`CAN_FETCH`，首页与设置提示去桌面应用）。
   - 网络作用域在 [`src-tauri/capabilities/default.json`](../src-tauri/capabilities/default.json)：允许所有 `http://*`、`https://*`（研究 Agent 按需读取来源网页全文，用户 2026-10 明确要求放开），拒绝名单列出本机与内网（localhost、127/10/192.168/172.16–31/169.254/0 网段、.local 等）；[`tauri.conf.json`](../src-tauri/tauri.conf.json) 的 `plugins.http.scopeRedirects: true` 让每一跳重定向都过作用域检查（有插件配置时 Rust 侧必须依赖 `serde_json`，否则 `generate_context!` 编译失败）。作用域写法是 URLPattern：IPv6 字面量（如 `http://[::1]`）不是合法模式，会让所有网络请求失败（实测），IPv6 内网改由代码拦截。外链由 opener 插件交给系统浏览器。
   - 网页全文读取 [`providers/web.ts`](../src/core/providers/web.ts)：代码里再查一遍公网地址（含 IPv6 回环 / 唯一本地 / 链路本地），不自动跟随重定向而是逐跳检查，10 秒超时、3MB 上限、只收 HTML / 纯文本，按响应头与 meta 识别编码（GBK 按 GB18030 解码），用 `@mozilla/readability` 提取正文、截到 8000 字。读网页的请求不经调试日志的完整记录（HTML 太大），研究 Agent 只记网址、字数、耗时或失败原因。实测（2026-10）：文章页约 0.5–1 秒；脚本渲染或拒绝访问的页面会失败（如部分 CSDN 页面），失败原因会告诉模型，由它决定换一篇或结束。
   - 内容安全策略（CSP）在 [`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json)，新增外部字体、图片或脚本来源时需同步调整。`connect-src` 里的 `ws://127.0.0.1:47831` 是痕迹AI 录制探针的本机连接（见下条）。
@@ -108,7 +109,7 @@ template_state: ready
 ## 运行与验证
 
 - 脚本以 [`package.json`](../package.json) 为准：
-  - `npm run dev`：只启动 Vite（:17531），供浏览器里用示例模式调界面；
+  - `npm run dev`：只启动 Vite（:17531），供浏览器里用示例模式调界面（`.env` 里 `VITE_PROVIDERS=mock` 时）；不是示例模式时浏览器经开发服务器发真实请求，密钥在页面的设置里填（17531 来源下的 localStorage，与桌面应用不互通）；
   - `npm run app:dev`：桌面应用开发模式，会自行启动 Vite，因此不能与 `npm run dev` 同时运行。用真实接口测试时，先在 PowerShell 里执行 `$env:VITE_PROVIDERS = 'real'` 再运行；
   - `npm run app:build`：生成 Windows NSIS 安装包，位于 `src-tauri/target/release/bundle/nsis/`；
   - `npm run typecheck`、`npm test`（`src/**/*.test.ts`，`node:test`）、`npm run build`。

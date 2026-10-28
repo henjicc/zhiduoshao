@@ -1,7 +1,7 @@
 import { Check, CircleAlert, ExternalLink, Eye, EyeOff, LoaderCircle, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { tracedFetch } from "../core/debug.ts";
-import { IN_APP, httpFetch } from "../core/http.ts";
+import { CAN_FETCH, IN_APP, httpFetch } from "../core/http.ts";
 import { VISIBLE_MODELS, profiles } from "../core/models.ts";
 import { isPlanKey, testTokenHub } from "../core/providers/tokenhub.ts";
 import { ProviderError, type ProviderErrorInfo } from "../core/providers/types.ts";
@@ -50,7 +50,7 @@ function Dialog({ closing }: { closing: boolean }) {
   }, []);
 
   const planKey = isPlanKey(llmKey);
-  const canTest = IN_APP;
+  const canTest = CAN_FETCH;
 
   return (
     <div className={`dialog-layer${closing ? " is-closing" : ""}`}>
@@ -65,7 +65,7 @@ function Dialog({ closing }: { closing: boolean }) {
         </header>
 
         <div className="dialog-body">
-          {!IN_APP && (
+          {!IN_APP && (MOCK_MODE || !CAN_FETCH) && (
             <p className="settings-banner" role="status">
               <CircleAlert size={14} strokeWidth={1.8} />
               <span>{MOCK_MODE ? "当前为开发示例模式，回答使用示例数据。" : "浏览器无法直接调用腾讯接口，请在桌面应用中使用。"}</span>
