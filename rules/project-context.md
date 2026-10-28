@@ -113,7 +113,3 @@ template_state: ready
 - 网络或原生改动必须在桌面窗口里验证：设环境变量 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9223` 启动应用，通过 CDP 在窗口内执行请求。
 - 开发服务：`.claude/launch.json` 的 `dev` 配置运行 `npm run dev`，`dev-mock` 在 17532 端口运行示例模式（就绪信号为 Vite `ready`）；停止时只结束该命令或核对过 PID 的进程。
 - 费用与权限：真实模式每次提问会调用付费的元宝搜索与 TokenHub 模型。验证优先用示例模式或无效密钥；真实调用只用用户提供的密钥，并控制次数。
-
-## 环境与协作例外
-
-- 当前目录不是 Git 仓库，按 Git 规则跳过提交与同步，不自行初始化仓库。
