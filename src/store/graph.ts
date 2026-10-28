@@ -24,6 +24,13 @@ function followSpine(id: string) {
   setSpine(id);
 }
 
+/** 要回答的问题在折叠的分支里（追问、看看新进展，或在侧边栏、总结面板里点的）：先展开它上面折叠的节点，回答才看得见 */
+function expandTo(id: string) {
+  const { nodes } = get();
+  const folded = chain(nodes, id).slice(0, -1).filter((a) => a.collapsed);
+  if (folded.length) commitNodes({ ...nodes, ...Object.fromEntries(folded.map((a) => [a.id, { ...a, collapsed: false }])) });
+}
+
 /** 离开地图时取消它的请求；已选择在后台继续的地图除外 */
 function cancelCurrent() {
   const id = get().map?.id;
@@ -120,6 +127,7 @@ export const actions = {
   ask(id: string) {
     const n = get().nodes[id];
     if (n?.kind === "question") recordAngle(n.dir, get().map?.id, true);
+    expandTo(id);
     setSpine(id);
     runAnswer(id);
     activate(id);
@@ -144,7 +152,6 @@ export const actions = {
     const n = get().nodes[id];
     const since = n && newsSince(n);
     if (!since) return;
-    if (n.collapsed) patch(id, () => ({ collapsed: false }));
     const [, m, d] = since.split("-").map(Number);
     const q = `${n.q.replace(/[？?。]$/, "")}：${m}月${d}日以来的新进展`;
     const child = addNode(newNode({ kind: "answer", dir: "新进展", q, parent: id, since }));
@@ -152,8 +159,6 @@ export const actions = {
   },
 
   followup(parentId: string, q: string) {
-    const p = get().nodes[parentId];
-    if (p?.collapsed) patch(parentId, () => ({ collapsed: false }));
     const id = addNode(newNode({ kind: "answer", dir: "追问", q, parent: parentId }));
     actions.ask(id);
   },
