@@ -130,3 +130,18 @@ test("问透的收尾记号排在子列最前面，输入框接在它下面；�
   assert.deepEqual(layout(grown, sizes, "r").ends, {});
   assert.deepEqual(layout({ r: { ...nodes.r, collapsed: true } }, sizes).ends, {});
 });
+
+test("收尾记号跟着子列一起避让：问透的兄弟贴着上一个兄弟放，记号排到上一个兄弟的子列下面", () => {
+  const q = { w: 380, h: 44 };
+  const kidsOfA = ["a1", "a2", "a3", "a4", "a5", "a6"];
+  const nodes: Record<string, GNode> = {
+    r: node({ id: "r", children: ["a", "b"] }),
+    a: node({ id: "a", parent: "r", children: kidsOfA }),
+    b: node({ id: "b", parent: "r", settled: true }),
+    ...Object.fromEntries(kidsOfA.map((id) => [id, node({ id, kind: "question", parent: "a" })])),
+  };
+  const sizes = { r: { w: 380, h: 120 }, a: { w: 380, h: 200 }, b: { w: 380, h: 120 }, ...Object.fromEntries(kidsOfA.map((id) => [id, q])) };
+  const { pos, ends } = layout(nodes, sizes);
+  assert.equal(pos.b.y, 200 + ROW_GAP);
+  assert.equal(ends.b.y, pos.a6.y + q.h + ROW_GAP);
+});

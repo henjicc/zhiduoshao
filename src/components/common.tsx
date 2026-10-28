@@ -69,10 +69,6 @@ export function Cites({ cites, sources, quote = "" }: { cites: number[]; sources
 /** 角标所在的节点：气泡里「在侧边栏阅读」需要知道来源属于哪个节点（总结面板里没有） */
 export const CiteNode = createContext<string | null>(null);
 
-/**
- * 来源列表的一行：点击按设置用系统浏览器打开，或在侧边栏阅读视图里打开（需要 nodeId）；
- * 没有链接的权威卡片直接显示摘要。detail 时列出附件子链
- */
 /** 推荐先问的标记：「先问」两个字用图表强调色（墨色方案的主题色是灰，不够醒目），后面跟半句理由 */
 export function NextWhy({ why, replayId }: { why: string; replayId: string }) {
   return (
@@ -89,6 +85,10 @@ export function MetaParts({ items, className }: { items: ReactNode[]; className?
   return <span className={className ? `meta-parts ${className}` : "meta-parts"}>{xs.map((x, i) => <span key={i}>{x}</span>)}</span>;
 }
 
+/**
+ * 来源列表的一行：点击按设置用系统浏览器打开，或在侧边栏阅读视图里打开（需要 nodeId）；
+ * 没有链接的权威卡片直接显示摘要。detail 时列出附件子链
+ */
 export function SourceItem({ s, n, detail = false, nodeId }: { s: Source; n: number; detail?: boolean; nodeId?: string }) {
   const body = (
     <>

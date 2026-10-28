@@ -50,10 +50,10 @@ export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: stri
       offset.set(key, y);
       for (const b of boxes) placed.push({ ...b, y: b.y + y });
     };
-    /** 子树根不动，只把它右边的子列（含输入框）整体挪 d：节点本身可以贴着上面的兄弟，子列另外找空位 */
+    /** 子树根不动，只把它右边的子列（含收尾记号与输入框）整体挪 d：节点本身可以贴着上面的兄弟，子列另外找空位 */
     const shiftKids = (c: GNode, boxes: Box[], d: number) => {
       for (const k of kids(c)) offset.set(k.id, offset.get(k.id)! + d);
-      if (slotSize(c)) offset.set(slotKey(c.id), offset.get(slotKey(c.id))! + d);
+      for (const key of [endSize(c) && endKey(c.id), slotSize(c) && slotKey(c.id)]) if (key) offset.set(key, offset.get(key)! + d);
       return boxes.map((b, i) => (i === 0 ? b : { ...b, y: b.y + d }));
     };
     let floor = 0;

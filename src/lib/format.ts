@@ -65,8 +65,8 @@ export function readWritten(sources: Source[], summary: string, points: { text: 
   };
 }
 
-/** 大约多少字：一万以上按万、保留一位小数，一千以上取整到百 */
+/** 大约多少字：一千以上取整到百，到了一万按万、保留一位小数 */
 export function approxCount(n: number) {
-  if (n >= 10_000) return `${(n / 10_000).toFixed(1).replace(/\.0$/, "")} 万`;
-  return String(n >= 1000 ? Math.round(n / 100) * 100 : n);
+  const r = n >= 1000 ? Math.round(n / 100) * 100 : n;
+  return r >= 10_000 ? `${(n / 10_000).toFixed(1).replace(/\.0$/, "")} 万` : String(r);
 }

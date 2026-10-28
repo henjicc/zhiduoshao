@@ -42,17 +42,18 @@ export function zoomAt(factor: number, cx: number, cy: number, glide = false) {
 }
 
 export function fit() {
-  const { pos, visible } = get();
+  const { pos, visible, ends } = get();
   if (!visible.length) return;
-  const b = bounds(visible.map((id) => pos[id]));
+  const b = bounds([...visible.map((id) => pos[id]), ...Object.values(ends)]);
   const vp = viewport();
   const s = Math.min(1, Math.max(ZOOM_MIN, Math.min((vp.r - vp.l) / (b.x2 - b.x1), (vp.b - vp.t) / (b.y2 - b.y1))));
   set({ view: { s, x: (vp.l + vp.r) / 2 - ((b.x1 + b.x2) / 2) * s, y: (vp.t + vp.b) / 2 - ((b.y1 + b.y2) / 2) * s, glide: true } });
 }
 
+/** 这些节点在屏幕上占的范围，连同它们的收尾记号 */
 function screenBounds(ids: string[]) {
-  const { pos, view: v } = get();
-  const boxes = ids.map((id) => pos[id]).filter(Boolean);
+  const { pos, ends, view: v } = get();
+  const boxes = ids.flatMap((id) => [pos[id], ends[id]]).filter(Boolean);
   if (!boxes.length) return null;
   const b = bounds(boxes);
   return { x1: b.x1 * v.s + v.x, x2: b.x2 * v.s + v.x, y1: b.y1 * v.s + v.y, y2: b.y2 * v.s + v.y };

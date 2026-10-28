@@ -168,7 +168,7 @@ export function runAnswer(id: string, more?: AnswerRequest["more"]) {
 export function runSynthesis(id: string, op: OpKind, instruction: string | undefined, linked: string[], retry = false) {
   if (retry) {
     release(detailKey(id));
-    patch(id, () => ({ status: "loading", error: null, errorCode: null, errorHint: null, thinking: "", summary: "", points: [], visual: null, memory: null, sources: [], searchResults: 0, searches: [], steps: [], searchMs: 0, stage: null, detail: "", detailStatus: "idle" }));
+    patch(id, () => ({ status: "loading", error: null, errorCode: null, errorHint: null, thinking: "", summary: "", settled: false, points: [], visual: null, memory: null, sources: [], searchResults: 0, searches: [], steps: [], searchMs: 0, stage: null, detail: "", detailStatus: "idle" }));
   }
   const ctrl = claim(id);
   const map = mapOf();

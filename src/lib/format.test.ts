@@ -28,5 +28,6 @@ test("读与写的字数：读过全文的按全文，结论去掉角标，不�
   assert.equal(approxCount(21_340), "2.1 万");
   assert.equal(approxCount(20_020), "2 万");
   assert.equal(approxCount(8_640), "8600");
+  assert.equal(approxCount(9_980), "1 万");
   assert.equal(approxCount(286), "286");
 });
