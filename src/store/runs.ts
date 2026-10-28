@@ -156,9 +156,12 @@ export function runAnswer(id: string, more?: AnswerRequest["more"]) {
   // 第一次回答才算一次提问（重试、补充检索、看看新进展不算），记进个人记忆
   if (!more && !n.since && !n.answeredAt && !n.compareOf) noteAsk(n.q, map);
   reportAction("ask", { nodeId: id, question: n.q });
-  // 看看新进展：上一层已有的来源不算新内容
-  const exclude = n.since && n.parent ? get().nodes[n.parent]?.sources.flatMap(articleKeys) : undefined;
-  const req: AnswerRequest = { question: n.q, path: pathOf(id), existing: relatedQuestions([id]).filter((q) => q !== n.q), search, images: n.images, imageNote: n.imageNote || undefined, more, since: n.since ?? undefined, exclude, prefs: prefs() };
+  // 看看新进展：上一层已有的来源不算新内容；搜索更多来源：上次复查剔除的不再搜回来（网页来源的 id 就是链接）
+  const exclude = [
+    ...(n.since && n.parent ? get().nodes[n.parent]?.sources.flatMap(articleKeys) ?? [] : []),
+    ...(more ? n.dropped.map((d) => d.url).filter(Boolean) : []),
+  ];
+  const req: AnswerRequest = { question: n.q, path: pathOf(id), existing: relatedQuestions([id]).filter((q) => q !== n.q), search, images: n.images, imageNote: n.imageNote || undefined, more, since: n.since ?? undefined, exclude: exclude.length ? exclude : undefined, prefs: prefs() };
   // 先从记忆和历史地图里取这次用得上的（读本机数据库，很快），再发请求
   void buildMemory(n.q, map).catch(() => null).then((mem) => {
     if (ctrl.signal.aborted) return;

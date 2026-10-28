@@ -107,7 +107,7 @@ export async function* summarize(deps: Deps, req: SummaryRequest, signal: AbortS
   yield { type: "done" };
 }
 
-/** 路径回看「已经弄清的」：快模型一次 JSON 调用（约 3 秒）。来源按 mergeSources 合并，序号和同一范围的总结一致 */
+/** 路径回看「已经弄清的」：快模型一次 JSON 调用（实测 6–7 秒）。来源按 mergeSources 合并，序号和同一范围的总结一致 */
 export async function* review(deps: Deps, req: ReviewRequest, signal: AbortSignal): AsyncGenerator<StreamEvent> {
   const merged = mergeSources(req.nodes);
   yield { type: "sources", sources: merged.sources };

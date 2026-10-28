@@ -232,7 +232,7 @@ button.source { width: 100%; text-align: left; }
 }
 @media (max-width: 720px) {
   .review-route { grid-template-columns: 1fr; gap: 6px; }
-  .review-track { width: 16px; height: 40px; }
+  .review-track { width: 16px; height: max(40px, calc(var(--steps) * 20px)); }
   .review-line line:not(.is-v) { display: none; }
   .review-line .is-v { display: inline; }
   .review-dot { top: calc(var(--at) * 100%); left: 50%; }

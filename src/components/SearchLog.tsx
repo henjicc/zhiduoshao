@@ -143,15 +143,17 @@ function DroppedStep({ n }: { n: GNode }) {
       </button>
       {open && (
         <ul className="dropped">
-          {n.dropped.map((d, i) => (
-            <li key={i}>
-              <a className="dropped-row" href={d.url} target="_blank" rel="noopener noreferrer">
+          {n.dropped.map((d, i) => {
+            const row = (
+              <>
                 <SourceIcon source={{ id: d.url, title: d.title, url: d.url, site: d.site, favicon: d.favicon, snippet: "" }} />
                 <span className="dropped-title">{d.title}</span>
                 {d.why && <span className="dropped-why">{d.why}</span>}
-              </a>
-            </li>
-          ))}
+              </>
+            );
+            // 没有链接的权威卡片只列出来，不能点
+            return <li key={i}>{d.url ? <a className="dropped-row" href={d.url} target="_blank" rel="noopener noreferrer">{row}</a> : <div className="dropped-row">{row}</div>}</li>;
+          })}
         </ul>
       )}
     </li>

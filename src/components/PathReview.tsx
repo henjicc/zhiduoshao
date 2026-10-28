@@ -7,9 +7,9 @@ import { Cites, NextWhy } from "./common.tsx";
 /** 已经弄清的几件事：快模型整理中、整理好或失败（失败时整块不显示） */
 export interface Learning { status: "loading" | "ready" | "error"; items: Learned[]; sources: Source[] }
 
-/** 路径上还没点开的问题：推荐先问的排前面，其余越靠近现在越前，最多 4 条 */
+/** 路径上还没点开的问题：推荐先问的排前面，其余越靠近现在的那一层越前，同一层里保持原来的顺序，最多 4 条 */
 export function unopened(list: GNode[], nodes: Record<string, GNode>): GNode[] {
-  const qs = list.flatMap((n) => n.children.map((c) => nodes[c]).filter((c): c is GNode => c?.kind === "question")).reverse();
+  const qs = [...list].reverse().flatMap((n) => n.children.map((c) => nodes[c]).filter((c): c is GNode => c?.kind === "question"));
   return [...qs.filter((q) => q.nextWhy), ...qs.filter((q) => !q.nextWhy)].slice(0, 4);
 }
 
@@ -29,7 +29,7 @@ export function PathReview({ list, learned, more, sources }: { list: GNode[]; le
             <span className="review-label">起点</span>
             <p className="review-q">{list[0].q}</p>
           </div>
-          <div className="review-track">
+          <div className="review-track" style={{ "--steps": steps.length } as CSSProperties}>
             <svg className="review-line" aria-hidden="true">
               <line pathLength={1} x1="0" y1="50%" x2="100%" y2="50%" />
               <line pathLength={1} className="is-v" x1="50%" y1="0" x2="50%" y2="100%" />

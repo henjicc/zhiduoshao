@@ -29,30 +29,32 @@ function scopeNodes(scope: Scope, nodes: Record<string, GNode>, activeId: string
 
 interface Result { text: string; thinking: string; sources: Source[]; status: "loading" | "streaming" | "ready" | "error"; error?: string }
 
-/** 路径回看「已经弄清的」：只缓存在内存里、不存档；同一条路径内容没变时重新打开面板不再调用模型 */
+/** 路径回看「已经弄清的」：只缓存在内存里、不存档；同一条路径内容没变时重新打开面板不再调用模型。
+ * 键带地图 id 与每个节点的回答时间：节点编号每张地图都从 n1 起，重新回答后结论字数也可能不变 */
 const learnedCache = new Map<string, Learning>();
 const NO_LEARNED: Learning["items"] = [];
 
 function useLearned(list: GNode[], on: boolean) {
-  const key = list.map((n) => n.id + ":" + n.summary.length).join(",");
-  const [state, setState] = useState<Learning | null>(() => (on ? learnedCache.get(key) ?? null : null));
+  const mapId = useGraph((s) => s.map?.id ?? "");
+  const key = `${mapId}|${list.map((n) => `${n.id}:${n.answeredAt}:${n.summary.length}`).join(",")}`;
+  const [state, setState] = useState<{ key: string; value: Learning } | null>(null);
   useEffect(() => {
-    if (!on || !list.length) return setState(null);
-    const cached = learnedCache.get(key);
-    if (cached) return setState(cached);
+    if (!on || !list.length || learnedCache.has(key)) return;
     const ctrl = new AbortController();
     let acc: Learning = { status: "loading", items: [], sources: [] };
-    setState(acc);
+    setState({ key, value: acc });
     void api.review({ origin: list[0].q, nodes: list.map(toContext) }, (ev) => {
       if (ev.type === "sources") acc = { ...acc, sources: ev.sources };
       else if (ev.type === "learned") learnedCache.set(key, (acc = { ...acc, status: "ready", items: ev.items }));
       else if (ev.type === "error") acc = { ...acc, status: "error" };
       else return;
-      setState(acc);
+      setState({ key, value: acc });
     }, ctrl.signal);
     return () => ctrl.abort();
   }, [key, on]);
-  return state;
+  // 缓存里有的在这一次渲染就给出，路径回看一挂载就知道要等对照的线画完再放出
+  if (!on || !list.length) return null;
+  return learnedCache.get(key) ?? (state?.key === key ? state.value : null);
 }
 
 export function SummarySheet() {
@@ -106,7 +108,7 @@ function Sheet({ closing }: { closing: boolean }) {
     return result.sources.map((s, i) => ({ s, i })).filter(({ i }) => used.has(i + 1));
   }, [result, learnedItems]);
 
-  /** 总结正文加上实际引用的来源列表：复制和下载用同一份 Markdown。当前路径时路径回看放在标题之后、正文之前，和面板里一样 */
+  /** 总结正文加上实际引用的来源列表：复制和下载用同一份 Markdown。当前路径时路径回看放在总结标题之后、正文之前 */
   const markdown = () => {
     if (!result) return "";
     const refs = cited.map(({ s, i }) => `${i + 1}. ${s.url ? `[${s.title}](${s.url})` : `${s.title}（权威卡片，无链接）`}（${s.site}）`).join("\n");
