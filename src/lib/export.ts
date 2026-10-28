@@ -1,4 +1,4 @@
-import type { Visual } from "../core/protocol.ts";
+import type { Learned, Visual } from "../core/protocol.ts";
 import type { GNode } from "../store/types.ts";
 
 // 把节点导出为 Markdown：每个节点一节（问题、结论、智能卡片、要点、详解、来源），角标保留为 [n]，对应本节的来源列表。
@@ -51,6 +51,15 @@ export function treeOrder(nodes: Record<string, GNode>): GNode[] {
 export function nodesMd(list: GNode[], title?: string): string {
   if (list.length === 1 && !title) return nodeMd(list[0]) + "\n";
   return [title ? `# ${title}` : "", ...list.map((n) => nodeMd(n, 2))].filter(Boolean).join("\n\n") + "\n";
+}
+
+/** 总结面板路径回看的 Markdown：从起点到现在的问题、已经弄清的几件事（角标是合并后的来源序号）、还可以再看的问题 */
+export function reviewMd(list: GNode[], learned: Learned[], more: GNode[]): string {
+  const parts: string[] = [];
+  if (list.length > 1) parts.push(`## 从起点到现在\n\n${list.map((n, i) => `${i + 1}. ${n.q}`).join("\n")}`);
+  if (learned.length) parts.push(`## 已经弄清的\n\n${learned.map((x) => `- ${x.text}${cites(x.cites)}`).join("\n")}`);
+  if (more.length) parts.push(`## 还可以再看的\n\n${more.map((q) => `- ${q.q}${q.nextWhy ? `（先问：${q.nextWhy}）` : ""}`).join("\n")}`);
+  return parts.join("\n\n");
 }
 
 /** 文件名：去掉 Windows 不允许的字符，截短 */

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AnswerParser, parseVisual } from "./format.ts";
+import { AnswerParser, parseLearned, parseVisual } from "./format.ts";
 
 const OUTPUT = `结论：AI 服务器需求挤占产能，内存价格回升。[1][9]
 要点：
@@ -147,4 +147,14 @@ test("追问：无 发一次 settled；有追问时不发", () => {
     for (const chunks of [[out], [...out]]) assert.equal(run(chunks).filter((e) => e.type === "settled").length, 1);
   }
   assert.equal(run([OUTPUT]).filter((e) => e.type === "settled").length, 0);
+});
+
+test("路径回看「已经弄清的」：文字里的角标收进 cites，越界的丢掉，最多 2 个；没有文字的条目丢掉，一条不剩为 null", () => {
+  assert.deepEqual(parseLearned('{"learned":[{"text":"涨价来自存储芯片[2]","cites":[1,9]},{"text":"","cites":[1]},{"text":"能等就等到明年下半年","cites":[3,1,2]},{"text":"没来源也留着"}]}', 3), [
+    { text: "涨价来自存储芯片", cites: [1, 2] },
+    { text: "能等就等到明年下半年", cites: [3, 1] },
+    { text: "没来源也留着", cites: [] },
+  ]);
+  assert.equal(parseLearned('{"learned":[]}', 3), null);
+  assert.equal(parseLearned("{坏的", 3), null);
 });

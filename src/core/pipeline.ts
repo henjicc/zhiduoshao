@@ -1,11 +1,11 @@
-import { articleKeys, type AnswerRequest, type DetailRequest, type NodeContext, type Prefs, type Source, type StreamEvent, type SummaryRequest, type SynthesizeRequest } from "./protocol.ts";
+import { articleKeys, type AnswerRequest, type DetailRequest, type NodeContext, type Prefs, type ReviewRequest, type Source, type StreamEvent, type SummaryRequest, type SynthesizeRequest } from "./protocol.ts";
 import { ProviderError, type LLMProvider } from "./providers/types.ts";
-import { AnswerParser } from "./format.ts";
-import { answerPrompt, detailPrompt, summaryPrompt, synthesizePrompt, today, visionPrompt } from "./prompts.ts";
+import { AnswerParser, parseLearned } from "./format.ts";
+import { answerPrompt, detailPrompt, reviewPrompt, summaryPrompt, synthesizePrompt, today, visionPrompt } from "./prompts.ts";
 import { research, type ResearchDeps } from "./research.ts";
 import { candidatePics } from "../lib/pics.ts";
 
-// 一次请求的编排：看图 → 研究（research.ts 的 Agent 循环）→ 主模型整理答案；以及综合、总结、详解。
+// 一次请求的编排：看图 → 研究（research.ts 的 Agent 循环）→ 主模型整理答案；以及综合、总结、路径回看、详解。
 // 输入框路由在 router.ts。
 
 /** 编排依赖：模型、搜索与日志（研究 Agent 用到的同一组） */
@@ -104,6 +104,17 @@ export async function* summarize(deps: Deps, req: SummaryRequest, signal: AbortS
     if (d.reasoning) yield { type: "thinking", delta: d.reasoning };
     if (d.content) yield { type: "text", delta: d.content };
   }
+  yield { type: "done" };
+}
+
+/** 路径回看「已经弄清的」：快模型一次 JSON 调用（约 3 秒）。来源按 mergeSources 合并，序号和同一范围的总结一致 */
+export async function* review(deps: Deps, req: ReviewRequest, signal: AbortSignal): AsyncGenerator<StreamEvent> {
+  const merged = mergeSources(req.nodes);
+  yield { type: "sources", sources: merged.sources };
+  const text = await deps.llm.complete(reviewPrompt(req.origin, merged.nodes), { tier: "fast", json: true, temperature: 0.2, signal });
+  const items = parseLearned(text, merged.sources.length);
+  if (!items) throw new ProviderError("tokenhub", "没有整理出已经弄清的内容", text.slice(0, 500));
+  yield { type: "learned", items };
   yield { type: "done" };
 }
 

@@ -197,6 +197,18 @@ export interface SummaryRequest {
   nodes: NodeContext[];
 }
 
+/** 路径回看：起点原话与路径上已答的节点（从起点到现在），整理出已经弄清的几件事 */
+export interface ReviewRequest {
+  origin: string;
+  nodes: NodeContext[];
+}
+
+/** 已经弄清的一件事：一句话，cites 指向按 mergeSources 合并后的来源序号（与同一范围的总结一致） */
+export interface Learned {
+  text: string;
+  cites: number[];
+}
+
 /** see：识别图片；review：检索循环里复查资料够不够；fetch：读取来源网页全文；read：主模型阅读来源 */
 export type Stage = "see" | "rewrite" | "search" | "review" | "fetch" | "read" | "compose";
 
@@ -224,6 +236,8 @@ export type StreamEvent =
   | { type: "followup"; followup: Followup }
   /** 模型写了「追问：无」：结合探索路径，起点的疑问已经解开，这条线问透了 */
   | { type: "settled" }
+  /** 路径回看里已经弄清的几件事 */
+  | { type: "learned"; items: Learned[] }
   /** 总结文档的增量文本 */
   | { type: "text"; delta: string }
   /** 模型思考过程的增量文本，只用于等待时的动态反馈 */

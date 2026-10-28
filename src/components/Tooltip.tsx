@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
-// 图标按钮的悬停提示：读取按钮的 aria-label，替代系统原生的 title 提示。
+// 图标按钮（以及路径回看里每一步的点）的悬停提示：读取 aria-label，替代系统原生的 title 提示。
 // 全局一个实例，靠事件委托工作，组件里不需要额外写什么。
 
-const TARGET = ".icon-btn[aria-label], .wc[aria-label], .zoom-value[aria-label]";
+const TARGET = ".icon-btn[aria-label], .wc[aria-label], .zoom-value[aria-label], .review-dot[aria-label]";
 const DELAY = 500;
 /** 刚看过一个提示时，移到相邻按钮立即显示 */
 const WARM = 400;

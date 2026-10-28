@@ -1,8 +1,8 @@
 import { debugLog, DEBUG_LOG, tracedFetch } from "../core/debug.ts";
 import { httpFetch } from "../core/http.ts";
-import { answer, detail, summarize, synthesize, type Deps } from "../core/pipeline.ts";
+import { answer, detail, review, summarize, synthesize, type Deps } from "../core/pipeline.ts";
 import { command } from "../core/router.ts";
-import type { AnswerRequest, CommandRequest, DetailRequest, Stage, StreamEvent, SummaryRequest, SynthesizeRequest } from "../core/protocol.ts";
+import type { AnswerRequest, CommandRequest, DetailRequest, ReviewRequest, Stage, StreamEvent, SummaryRequest, SynthesizeRequest } from "../core/protocol.ts";
 import { createProviders } from "../core/providers/registry.ts";
 import { createMockReader } from "../core/providers/mock.ts";
 import { createPageReader } from "../core/providers/web.ts";
@@ -72,6 +72,7 @@ export const api = {
   answer: (req: AnswerRequest, on: (e: StreamEvent) => void, signal: AbortSignal) => run("answer", answer, req, on, signal),
   synthesize: (req: SynthesizeRequest, on: (e: StreamEvent) => void, signal: AbortSignal) => run("synth", synthesize, req, on, signal),
   summary: (req: SummaryRequest, on: (e: StreamEvent) => void, signal: AbortSignal) => run("summary", summarize, req, on, signal),
+  review: (req: ReviewRequest, on: (e: StreamEvent) => void, signal: AbortSignal) => run("review", review, req, on, signal),
   command: (req: CommandRequest, on: (e: StreamEvent) => void, signal: AbortSignal) => run("command", command, req, on, signal),
   detail: (req: DetailRequest, on: (e: StreamEvent) => void, signal: AbortSignal) => run("detail", detail, req, on, signal),
 };

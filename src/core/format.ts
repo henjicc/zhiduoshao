@@ -1,4 +1,4 @@
-import type { StreamEvent, Visual } from "./protocol.ts";
+import type { Learned, StreamEvent, Visual } from "./protocol.ts";
 
 // 解析模型按约定行格式输出的答案，边接收边产出事件：
 //   标题：...（仅综合节点）
@@ -99,6 +99,30 @@ export function parseVisual(json: string, max: number): Visual | null {
     default:
       return null;
   }
+}
+
+/** 路径回看每件事最多几个角标、最多几件 */
+const LEARNED_CITES = 2;
+const LEARNED_MAX = 5;
+
+/**
+ * 校验路径回看的「已经弄清的」JSON：{"learned":[{"text":"一句话","cites":[1]}]}。写进文字里的 [n] 也收成角标；
+ * 越界的角标丢掉，没有文字的条目丢掉，一条都不剩或 JSON 不完整时返回 null
+ */
+export function parseLearned(json: string, max: number): Learned[] | null {
+  let raw: unknown;
+  try { raw = JSON.parse(json); } catch { return null; }
+  const list = raw && typeof raw === "object" && Array.isArray((raw as { learned?: unknown }).learned) ? (raw as { learned: unknown[] }).learned : [];
+  const items = list
+    .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+    .map((x) => {
+      const t = extractCites(str(x.text), max);
+      const cites = [...new Set([...(Array.isArray(x.cites) ? x.cites.map(Number) : []), ...t.cites])].filter((n) => Number.isInteger(n) && n >= 1 && n <= max);
+      return { text: t.text, cites: cites.slice(0, LEARNED_CITES) };
+    })
+    .filter((x) => x.text)
+    .slice(0, LEARNED_MAX);
+  return items.length ? items : null;
 }
 
 /** 去掉越界角标，保留合法的 [n] 供界面渲染 */
