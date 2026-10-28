@@ -35,7 +35,8 @@ export function Home() {
   }, [loaded, hasItems, empty]);
 
   useEffect(() => { if (empty !== null) ref.current?.focus(); }, [empty !== null]);
-  usePetals(mark, empty !== null);
+  const petals = useSettings((s) => s.petals);
+  usePetals(mark, empty !== null && petals);
 
   useLayoutEffect(() => {
     const el = ref.current;

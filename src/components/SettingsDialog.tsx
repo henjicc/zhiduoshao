@@ -33,6 +33,7 @@ function Dialog({ closing }: { closing: boolean }) {
   const onLeave = useSettings((s) => s.onLeave);
   const palette = useSettings((s) => s.palette);
   const theme = useSettings((s) => s.theme);
+  const petals = useSettings((s) => s.petals);
   const first = useRef<HTMLInputElement>(null);
   // 每次修改后在标题旁短暂显示「已保存」
   const [savedTick, setSavedTick] = useState(0);
@@ -134,6 +135,16 @@ function Dialog({ closing }: { closing: boolean }) {
                     <button key={p.id} type="button" role="radio" className="palette" aria-checked={palette === p.id} onClick={() => palette !== p.id && update({ palette: p.id })}>
                       <span className="palette-dot" style={{ background: p.swatch }} />
                       {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="field">
+                <span className="field-label" id="petals-label">首页花瓣飘落</span>
+                <div className="segmented" role="radiogroup" aria-labelledby="petals-label">
+                  {([[true, "开启"], [false, "关闭"]] as const).map(([v, label]) => (
+                    <button key={label} type="button" role="radio" aria-checked={petals === v} onClick={() => petals !== v && update({ petals: v })}>
+                      {label}
                     </button>
                   ))}
                 </div>

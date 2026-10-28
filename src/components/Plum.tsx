@@ -97,8 +97,9 @@ type Petal = {
 /**
  * 从花的缺口不时飘出花瓣，在页面最上层（输入框之上）随风慢慢落到窗口外。
  * 风是全局的、方向会来回变；每片花瓣再叠自己的湍流，所以路线各不相同。
- * 首页卸载（提问后形变成卡片、打开历史地图）时不再生成，已有的花瓣继续飘、边飘边淡出，
- * 落瓣层挂在 body 上、不在首页里，形变时不会随首页一起消失或被残影盖住。
+ * 停用（首页卸载，或在设置里关掉）后不再生成，已有的花瓣继续飘、边飘边淡出。
+ * 落瓣层挂在 body 上、不在首页里；首页卸载（提问后形变成卡片、打开历史地图）时升到形变外壳之上，
+ * 不会随首页一起消失或被残影盖住；只是关掉时留在原层级，不盖住设置对话框。
  */
 export function usePetals(markRef: RefObject<SVGSVGElement | null>, active: boolean) {
   useEffect(() => {
@@ -167,7 +168,8 @@ export function usePetals(markRef: RefObject<SVGSVGElement | null>, active: bool
 
     return () => {
       released = performance.now();
-      layer.classList.add("is-released");
+      // 首页卸载时花已经不在文档里（ref 也已清空）
+      if (!markRef.current?.isConnected) layer.classList.add("is-released");
       if (!petals.length) { cancelAnimationFrame(raf); layer.remove(); }
     };
   }, [markRef, active]);

@@ -24,6 +24,8 @@ export interface Settings {
   theme: Theme;
   /** 配色方案：墨色为默认，其余见 PALETTES；写到 html 的 data-palette，令牌在 styles/tokens.css */
   palette: Palette;
+  /** 首页红梅的花瓣飘落；关闭后不再生成花瓣 */
+  petals: boolean;
   /** 输入框旁的回答偏好：回答风格、来源偏好与时间范围 */
   prefs: Prefs;
 }
@@ -65,7 +67,7 @@ interface SettingsState extends Settings {
 
 export const useSettings = create<SettingsState>()(
   persist(
-    (): SettingsState => ({ searchKey: "", llmKey: "", model: DEFAULT_MAIN_MODEL, autoCollapse: false, autoDetail: false, openSource: "browser", drawerWidth: DRAWER_DEFAULT, onLeave: "background", theme: "system", palette: "ink", prefs: DEFAULT_PREFS, open: false }),
+    (): SettingsState => ({ searchKey: "", llmKey: "", model: DEFAULT_MAIN_MODEL, autoCollapse: false, autoDetail: false, openSource: "browser", drawerWidth: DRAWER_DEFAULT, onLeave: "background", theme: "system", palette: "ink", petals: true, prefs: DEFAULT_PREFS, open: false }),
     {
       name: "zds-settings",
       version: 3,
@@ -78,7 +80,7 @@ export const useSettings = create<SettingsState>()(
         return s as SettingsState;
       },
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ searchKey, llmKey, model, autoCollapse, autoDetail, openSource, drawerWidth, onLeave, theme, palette, prefs }) => ({ searchKey, llmKey, model, autoCollapse, autoDetail, openSource, drawerWidth, onLeave, theme, palette, prefs }),
+      partialize: ({ searchKey, llmKey, model, autoCollapse, autoDetail, openSource, drawerWidth, onLeave, theme, palette, petals, prefs }) => ({ searchKey, llmKey, model, autoCollapse, autoDetail, openSource, drawerWidth, onLeave, theme, palette, petals, prefs }),
       // 已下线或在设置页隐藏的模型回到默认值（2026-10 起混元隐藏，统一用 DeepSeek Flash）
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<Settings>;
@@ -88,7 +90,8 @@ export const useSettings = create<SettingsState>()(
         const onLeave = p.onLeave === "stop" || p.onLeave === "ask" ? p.onLeave : "background";
         const theme = p.theme === "light" || p.theme === "dark" ? p.theme : "system";
         const palette = PALETTES.some((x) => x.id === p.palette) ? p.palette! : "ink";
-        return { ...current, ...p, model, openSource, drawerWidth, onLeave, theme, palette, prefs: cleanPrefs(p.prefs) };
+        const petals = p.petals !== false;
+        return { ...current, ...p, model, openSource, drawerWidth, onLeave, theme, palette, petals, prefs: cleanPrefs(p.prefs) };
       },
     },
   ),
