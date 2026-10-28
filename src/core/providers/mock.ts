@@ -1,5 +1,5 @@
-import { genericAnswer, genericSources, isMemoryTopic, MEMORY_ANSWERS, MEMORY_SOURCES, topicOf } from "./mock-data.ts";
-import { VISION_MARK } from "../prompts.ts";
+import { framedAnswer, genericAnswer, genericSources, isMemoryTopic, isThought, MEMORY_ANSWERS, MEMORY_SOURCES, topicOf } from "./mock-data.ts";
+import { FRAME_MARK, VISION_MARK } from "../prompts.ts";
 import { MEMORY_MARK } from "../../memory/consolidate.ts";
 import { textOf, type ChatMessage, type LLMProvider, type SearchProvider } from "./types.ts";
 import type { PageReader } from "./web.ts";
@@ -91,9 +91,11 @@ function synthesis(system: string, user: string) {
   ].join("\n");
 }
 
-function answerText(user: string) {
+function answerText(system: string, user: string) {
   const q = /问题：(.+)/.exec(user)?.[1]?.trim() ?? "这个问题";
   const cite = user.includes("搜索结果：");
+  // 起点是念头时像真实模型一样先拆题
+  if (system.includes(FRAME_MARK) && isThought(q)) return framedAnswer(q, cite);
   const canned = MEMORY_ANSWERS[q];
   if (canned) return cite ? canned : stripCites(canned);
   return genericAnswer(q, cite);
@@ -154,7 +156,7 @@ function respond(messages: ChatMessage[]) {
   }
   if (/^# 标题/m.test(system)) return summaryDoc(user);
   if (system.includes("标题：<")) return synthesis(system, user);
-  return answerText(user);
+  return answerText(system, user);
 }
 
 /** 模拟思维链：按任务给出一段像样的思考过程，用于开发时查看等待动画 */

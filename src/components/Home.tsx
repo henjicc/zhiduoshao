@@ -89,7 +89,7 @@ export function Home() {
             data-replay-id="ask-input"
             ref={ref}
             rows={1}
-            placeholder={att.items.length ? "关于图片想了解什么？" : "想了解什么？"}
+            placeholder={att.items.length ? "关于图片想了解什么？" : "想知道什么，或者在纠结什么？"}
             value={text}
             maxLength={500}
             onChange={(e) => setText(e.target.value)}

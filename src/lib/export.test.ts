@@ -5,7 +5,7 @@ import { fileName, nodeMd, nodesMd, treeOrder } from "./export.ts";
 
 const node = (id: string, p: Partial<GNode> = {}): GNode => ({
   id, kind: "answer", dir: null, nextWhy: null, q: `问题${id}`, parent: null, links: [], op: null, instruction: null, children: [], collapsed: false,
-  status: "ready", stage: null, stageDetail: null, images: [], imageNote: "", summary: `结论${id}。[1]`, thinking: "", points: [], visual: null, memory: null,
+  status: "ready", stage: null, stageDetail: null, images: [], imageNote: "", summary: `结论${id}。[1]`, framed: false, thinking: "", points: [], visual: null, memory: null,
   sources: [{ id: "s", title: "标题 | 竖线", url: "https://e.com/a", site: "站点", snippet: "" }], queries: [], searchResults: 0, searches: [], steps: [], searchMs: 0, searchMode: null, compareOf: null, answeredAt: 0, since: null,
   detail: "", detailStatus: "idle", error: null, errorCode: null, errorHint: null, dx: 0, dy: 0, ax: 0, ay: 0, ...p,
 });

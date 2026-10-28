@@ -130,3 +130,14 @@ test("推荐先问：只认第一条追问的「｜先问：」，后面的去�
     { dir: "走势", q: "会涨吗？" },
   ]);
 });
+
+test("拆题：按结论流式输出，并且只发一次 framed", () => {
+  const out = "拆题：你其实在决定两件事。[1]\n要点：\n- 今年涨了约一成。[2]\n追问：\n[时机] 现在买还是等？｜先问：先看值不值得等\n";
+  for (const chunks of [[out], [...out]]) {
+    const evs = run(chunks);
+    assert.equal(summaryOf(evs), "你其实在决定两件事。[1]");
+    assert.equal(evs.filter((e) => e.type === "framed").length, 1);
+    assert.equal(evs.filter((e) => e.type === "point").length, 1);
+  }
+  assert.equal(run([OUTPUT]).filter((e) => e.type === "framed").length, 0);
+});

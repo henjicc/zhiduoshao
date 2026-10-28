@@ -151,6 +151,25 @@ const FOLLOWS: [string, (t: string) => string][] = [
   ["延伸", () => "需要先弄清楚哪些基础概念？"],
 ];
 
+/** 念头、情绪或处境（纠结、觉得亏、要不要）：示例模型据此拆题而不是直接回答 */
+export const isThought = (q: string) => /纠结|犹豫|总觉得|觉得亏|要不要|该不该|想换|担心|后悔/.test(q);
+
+/** 拆题：说清对方其实在决定哪几件事，只列可查证的事实，第一条方向带先问 */
+export function framedAnswer(q: string, cite: boolean) {
+  const t = topicOf(q);
+  const c = (s: string) => (cite ? s : "");
+  return [
+    `拆题：你其实在决定两件事：现在的${t.slice(0, 6)}还能不能再撑一阵，以及眼下的价格值不值。${c("[1]")}`,
+    "要点：",
+    `- 今年同档位产品的起售价普遍上调，成本上涨是主因之一。${c("[2]")}`,
+    "追问：",
+    "[时机] 现在买和等半年，价格会差多少？｜先问：先看等一等值不值",
+    "[自查] 现在的问题换个电池或清理一下能解决吗？",
+    "[行情] 今年为什么集体涨价？",
+    "[选择] 同样的预算买上一代旗舰划算吗？",
+  ].join("\n");
+}
+
 /** 通用答案：话题词代入模板，按问题哈希挑选，保证同一问题结果稳定 */
 export function genericAnswer(q: string, cite: boolean) {
   const t = topicOf(q);

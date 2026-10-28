@@ -34,6 +34,8 @@ export interface GNode {
   /** 视觉模型对图片的文字描述；重试时复用，不重复识别 */
   imageNote: string;
   summary: string;
+  /** 起点是念头、情绪或处境，回答把它拆成了对方其实在决定的几件事（卡片标签「拆开来看」）；重新回答时清空 */
+  framed: boolean;
   /** 当前阶段模型的思考过程，只用于等待动画；换阶段时清空 */
   thinking: string;
   points: Point[];

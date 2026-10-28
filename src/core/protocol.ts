@@ -202,6 +202,8 @@ export type StreamEvent =
   /** 研究助手读了几篇来源的全文：标题与读成功的篇数 */
   | { type: "read"; titles: string[]; ok: number }
   | { type: "summary"; delta: string }
+  /** 起点是念头、情绪或处境：回答先把它拆成对方其实在决定的几件事（「拆题：」代替「结论：」），卡片标签显示「拆开来看」 */
+  | { type: "framed" }
   | { type: "point"; point: Point }
   | { type: "visual"; visual: Visual }
   | { type: "followup"; followup: Followup }

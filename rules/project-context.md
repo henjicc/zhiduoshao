@@ -12,6 +12,7 @@ template_state: ready
 - 接入范围：只接入腾讯：大模型为混元（TokenHub 按量 API Key），搜索为元宝搜索（服务 API Key）。这是腾讯项目的约束。
 - 已确认的核心交互：
   - 问题 → 答案 → 延伸问题（只有标题，点开才检索）→ 答案，循环往复；任意答案可追问。
+  - 模糊起点（2026-10-29 用户确认）：首页可以只写一句念头、情绪或处境（如「手机卡了想换，但今年手机都涨价了，现在买总觉得亏」），占位文字为「想知道什么，或者在纠结什么？」。回答提示词只在探索的第一层（路径为空、不是看看新进展）加 `frameRule`：能直接回答的问题照常回答；是念头时用「拆题：」代替「结论：」，一句话说清对方其实在决定哪几件事，要点 0 到 2 条、只写可查证的事实，不写数据卡片，追问 3 到 5 个方向、第一条带先问。解析器把「拆题：」按结论流式输出并发一次 `framed` 事件，存为 `GNode.framed`（重新回答清空），卡片标签显示「拆开来看」。检索规划要求念头只搜里面可查证的事实，不搜情绪。模型把明确问题误判成念头时用户仍有方向可点，代价小；不联网时同样适用。
   - 无限画布：拖动空白处平移、鼠标滚轮与 Ctrl + 滚轮缩放（每次事件幅度封顶约 12%，由 `createSmoothZoom` 在对数空间按 50ms 时间常数平滑趋近，期间比例被其他操作改动就放弃剩余缩放；触控板双指滑动也是缩放，捏合缩放；触屏单指平移、双指捏合）、按住 Shift 从任何位置拖动框选（从卡片上开始也行）、按住 Ctrl/⌘ 点击逐个加选（不相邻的节点也能一起选，Shift 点击不再加选）；选中的节点按选中顺序用强调色虚线串起来（`.sel-link`）；选中两个以上节点后自动弹出「想对它们做什么？」，预设总结 / 找出关联 / 进一步了解 / 扩散，也可自行输入，结果生成综合节点并以虚线连回来源节点。
   - 拖动与选字：卡片只有标题行（问题）、标签与附图是拖动节点的把手（`Canvas.tsx` 的 `DRAG_HANDLE`）；结论、要点、智能卡片可以选中复制，没拖动也没选中文字时按点击处理。延伸问题整个可拖。折叠按钮放在卡片外、连线起点（标题行高度）上，不压住正文。
   - 右键菜单（[`ContextMenu.tsx`](../src/canvas/ContextMenu.tsx)，只接管画布，侧边栏等处保留系统菜单）：节点上有复制选中文字、打开详情、复制 / 导出为 Markdown，右键的节点在多选里时可合并导出；空白处有「在这里提一个新问题」（在点击处、压住节点就往下挪，另起一棵树便于对比，`actions.startHere`）、复制 / 导出整张地图、适应画布。Markdown 由 [`lib/export.ts`](../src/lib/export.ts) 生成（有单测）：每个节点一节，智能卡片转成表格，详解去掉 [图n]，来源列表带链接；导出经 Rust 命令 `save_markdown` 弹出系统「另存为」（tauri-plugin-dialog 只在 Rust 侧用，界面传不了任意路径），浏览器示例模式直接下载。
@@ -92,7 +93,7 @@ template_state: ready
 - 痕迹AI 网页录制（2026-10 接入，按痕迹仓库 `docs/task/网页应用录制与重演/02-知多少适配说明.md`）：痕迹能把知多少的一次操作录成数据（请求与流式返回、Tauri 调用、存储、输入、元素），之后不联网重演。
   - 探针 `@henjicc/web-replay-probe` 在 [`src/henjiProbe.ts`](../src/henjiProbe.ts) 初始化，必须是 `main.tsx` 的第一条 import（zustand 持久化在导入期就读存储）。平时只安静地重试连接痕迹的本机端口，不接管任何东西。
   - 网络出口 `httpFetch` 由探针的 `wrapFetch` 包装：外部接口一律经过它，不要直接用 Tauri HTTP 插件、`window.fetch`、XHR、WebSocket、EventSource 或 Worker 访问外部接口，否则录不下、重演失败。
-  - 元素标识 `data-replay-id`：节点容器 `node-<id>`、首页提问框 `ask-input` 与提交 `ask-submit`、设置 `settings`、回首页 `back`、关闭详情 `drawer-close`、历史条目 `history-<地图 id>`；检索过程里的读写对比 `written-<节点 id>`；推荐先问的那一行 `next-<问题节点 id>`（侧栏里为 `drawer-next-<id>`）。新加的标识放在非按钮元素上时用 `data-replay-id`，不要用 `data-act`：画布按下时遇到 `[data-act]` 就不处理拖动与点击。节点里带 `data-act` 的按钮优先按 `data-act` 定位、以外层 `data-replay-id` 为范围，其他位置记为“节点 + 相对位置”。改这些元素时保留标识。
+  - 元素标识 `data-replay-id`：节点容器 `node-<id>`、首页提问框 `ask-input` 与提交 `ask-submit`、设置 `settings`、回首页 `back`、关闭详情 `drawer-close`、历史条目 `history-<地图 id>`；检索过程里的读写对比 `written-<节点 id>`；拆题卡片的标签 `framed-<节点 id>`；推荐先问的那一行 `next-<问题节点 id>`（侧栏里为 `drawer-next-<id>`）。新加的标识放在非按钮元素上时用 `data-replay-id`，不要用 `data-act`：画布按下时遇到 `[data-act]` 就不处理拖动与点击。节点里带 `data-act` 的按钮优先按 `data-act` 定位、以外层 `data-replay-id` 为范围，其他位置记为“节点 + 相对位置”。改这些元素时保留标识。
   - 动作上报 `reportAction`（[`runs.ts`](../src/store/runs.ts)、[`graph.ts`](../src/store/graph.ts)）：`ask`、`search`（每轮检索）、`sources-read`（开始写答案）、`answered`、`detail`。
   - 包尚未发布到 npm：[`vite.config.ts`](../vite.config.ts) 的别名与 `tsconfig.json` 的 `paths` 直接指向本机痕迹仓库 `../Henji-AI/packages/web-replay-probe/src` 的源码（目录不存在时 Vite 启动后页面报错、类型检查报找不到模块），类型检查会按本项目的 TypeScript 7 一起检查它。发布后改成 npm 依赖并删掉别名和 `paths`。
 - 密钥与设置：[`src/settings/store.ts`](../src/settings/store.ts)（zustand persist → 应用 WebView 的 localStorage，明文存于本机应用数据目录，不上传）；控制台日志不得输出密钥。设置页即改即存、没有保存按钮。密钥框用 `type="text"` + CSS 圆点掩码，不用 password 字段，避免 WebView2 弹出保存密码和自带显示按钮。

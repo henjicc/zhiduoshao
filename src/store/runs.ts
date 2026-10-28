@@ -95,6 +95,8 @@ function applyEvent(map: string, id: string, ev: StreamEvent) {
       return patch(() => ({ q: ev.text }));
     case "summary":
       return patch((n) => ({ status: "streaming", summary: n.summary + ev.delta }));
+    case "framed":
+      return patch(() => ({ framed: true }));
     case "point":
       return patch((n) => ({ status: "streaming", points: [...n.points, ev.point] }));
     case "visual":
@@ -125,7 +127,7 @@ function resetAnswer(id: string, keepQueries: boolean) {
   const n = nodes[id];
   for (const c of n.children) if (nodes[c].kind === "question") delete nodes[c];
   nodes[id] = {
-    ...n, kind: "answer", status: "loading", stage: null, stageDetail: null, summary: "", thinking: "", points: [], visual: null, memory: null, sources: [], error: null, errorCode: null, errorHint: null,
+    ...n, kind: "answer", status: "loading", stage: null, stageDetail: null, summary: "", framed: false, thinking: "", points: [], visual: null, memory: null, sources: [], error: null, errorCode: null, errorHint: null,
     detail: "", detailStatus: "idle",
     queries: keepQueries ? n.queries : [],
     searchResults: keepQueries ? n.searchResults : 0,

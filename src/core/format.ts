@@ -2,7 +2,7 @@ import type { StreamEvent, Visual } from "./protocol.ts";
 
 // 解析模型按约定行格式输出的答案，边接收边产出事件：
 //   标题：...（仅综合节点）
-//   结论：...
+//   结论：...（起点是念头而不是问题时写成「拆题：...」，同样按结论处理，另发一次 framed）
 //   数据：{"kind":"table",...}（可选的智能卡片，一行 JSON，见 parseVisual）
 //   要点：
 //   - 要点 [1][2]
@@ -11,10 +11,12 @@ import type { StreamEvent, Visual } from "./protocol.ts";
 //   [方向] 问题
 
 type Mode = "start" | "title" | "summary" | "visual" | "skip" | "points" | "followups";
-type Out = Extract<StreamEvent, { type: "title" | "summary" | "visual" | "point" | "followup" }>;
+type Out = Extract<StreamEvent, { type: "title" | "summary" | "framed" | "visual" | "point" | "followup" }>;
 
 const CITE = /\[(\d{1,2})\]/g;
-const LABEL = /^(标题|结论|数据|要点|追问)[：:]\s*/;
+const LABEL = /^(标题|结论|拆题|数据|要点|追问)[：:]\s*/;
+/** 结论段的两种标签 */
+const SUMMARY = new Set(["结论", "拆题"]);
 const NONE = /^[（(]?(无|没有|暂无)[)）。.]?$/;
 /** 追问后面的「｜先问：理由」 */
 const NEXT = /\s*[｜|]\s*先问\s*[：:]\s*(.*)$/;
@@ -149,8 +151,8 @@ export class AnswerParser {
       if (label[1] === "标题") {
         this.mode = "title";
         if (rest) this.emitTitle(out, rest);
-      } else if (label[1] === "结论") {
-        this.mode = "summary";
+      } else if (SUMMARY.has(label[1])) {
+        this.enterSummary(out, label[1]);
         // 结论内容在 streamSummary 中已按增量发出
       } else if (label[1] === "数据") {
         this.mode = "visual";
@@ -227,13 +229,13 @@ export class AnswerParser {
     if (this.mode !== "summary") {
       // 本行以「结论：」开头时切换模式
       const label = LABEL.exec(text.trimStart());
-      if (!label || label[1] !== "结论") return;
-      this.mode = "summary";
+      if (!label || !SUMMARY.has(label[1])) return;
+      this.enterSummary(out, label[1]);
       this.line = text = text.trimStart().slice(label[0].length);
       this.sent = 0;
     }
     const t = text.trimStart();
-    if (LABEL.test(t) && !t.startsWith("结论")) return;
+    if (LABEL.test(t) && !SUMMARY.has(t.slice(0, 2))) return;
     // 可能是漏写了「数据：」的卡片 JSON，等这一行写完再判断（见 endLine）
     if (this.sent === 0 && t.startsWith("{")) return;
     // 可能是下一个段落标签的开头（如「要」「要点」），等这一行写完再判断
@@ -255,4 +257,12 @@ export class AnswerParser {
   }
 
   private summaryStarted = false;
+  private framed = false;
+
+  private enterSummary(out: Out[], label: string) {
+    this.mode = "summary";
+    if (label !== "拆题" || this.framed) return;
+    this.framed = true;
+    out.push({ type: "framed" });
+  }
 }

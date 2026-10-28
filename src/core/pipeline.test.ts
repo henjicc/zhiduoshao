@@ -376,6 +376,13 @@ test("回答提示词带时效规则：以最新来源为准，没联网时提�
   assert.match(offline, /不要断言它不存在/);
 });
 
+test("拆题的写法只加在探索的第一层，看看新进展与追问不加", () => {
+  const system = (path: { q: string; summary: string }[], since?: string) => answerPrompt("手机卡了想换，但总觉得亏", path, [], null, undefined, since)[0].content as string;
+  assert.match(system([]), /拆题：/);
+  assert.doesNotMatch(system([{ q: "起点", summary: "s" }]), /拆题：/);
+  assert.doesNotMatch(system([], "2026-10-01"), /拆题：/);
+});
+
 test("卡片长度只由风格决定一处：简洁、详细与默认各一套，读者判断不另写条数", () => {
   const system = (style?: "auto" | "concise" | "deep" | "plain") =>
     answerPrompt("PHP 是啥", [], [], null, undefined, undefined, style && { style, customStyle: "", sources: "auto", time: "auto" })[0].content as string;

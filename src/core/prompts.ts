@@ -71,6 +71,22 @@ const format = (visual: boolean, style: Prefs["style"] | undefined, reader: bool
 [真伪] 这是真实缺货还是厂商在控制供给？`;
 };
 
+/**
+ * 模糊起点：首页输入的常常不是问题，而是一个念头、情绪或处境（如「手机卡了想换，但今年都涨价了，现在买总觉得亏」）。
+ * 这时不急着给建议，先拆开：说清对方其实在决定哪几件事，只列可查证的事实，给几个方向让对方顺着走。
+ * 只加在探索的第一层（不是「看看新进展」）；能直接回答的问题照常回答。卡片长度的条数在 LENGTH，这里只管拆题这一种写法
+ */
+export const FRAME_MARK = "念头、情绪或处境";
+const frameRule = (search: boolean) => `起点：这是探索的第一层。先判断用户输入的是一个能直接回答的问题，还是一个${FRAME_MARK}（比如纠结要不要做某事、担心、后悔、觉得亏）。
+- 能直接回答的问题，哪怕问得很短、很口语，照常按上面的格式回答。
+- 是念头、情绪或处境时，不急着下结论或给建议，先把它拆开，改用下面的写法，不按上面的条数：
+拆题：一句话说清对方其实在决定哪几件事，不超过 40 字。
+要点：
+- 0 到 2 条，只写里面可以查证的事实（比如价格今年涨了多少）${search ? "，带来源序号" : ""}；没有这样的事实就不写。
+追问：
+3 到 5 个方向，按上面追问的写法，第一条带「｜先问：」。
+拆题时不写「数据：」。`;
+
 const CITE_RULE = `以搜索结果为主要依据，句末用 [序号] 标注来源（可多个）。
 - 搜索结果没覆盖到的部分，尤其是常识、方法建议、一般原理这类问题，可以用你自己的知识补充，直接给出有用的回答；这些句子不标 [序号]，也不要冒充来源。
 - 具体数据、日期、人名机构、最新动态只用来源里的，不要编造；来源之间有冲突就如实说明。
@@ -174,6 +190,7 @@ export function researchPrompt(question: string, path: { q: string }[], imageNot
 
 第一步，规划检索：
 - 结合上下文路径补全“它”“这个”等指代，去掉口语和客套；每个查询词不超过 20 字。
+- 输入是念头、情绪或处境（纠结要不要做某事、担心、觉得亏）时，只搜里面可以查证的事实（价格、数据、政策、产品），不搜情绪本身。
 - 查询词 1 到 4 个，按问题需要决定：单一事实 1 个；涉及多个方面、对比或需要多方说法时，每个方面一个，彼此不重复。
 - time 只在问题需要近期信息时填写：d7（近 7 天）、m1（近 1 个月）、m6（近半年）、y1（近 1 年）；不需要就省略。
 - field 只在明显属于某个领域时填写：gov（政策法规）、news（新闻时事）、acad（学术研究）、finance（财经数据）；一般问题省略。
@@ -232,7 +249,7 @@ ${sources ? CITE_RULE : NO_SEARCH_RULE}
 ${timeRule(!!sources?.length)}${since ? "\n" + updateRule(since) : ""}${reader ? "\n" + READER_RULE : ""}${styleRule(prefs)}${memory?.answer ? "\n" + memory.answer : ""}
 ${THINK}
 
-${format(!!sources?.length, prefs?.style, reader)}`,
+${format(!!sources?.length, prefs?.style, reader)}${!path.length && !since ? "\n\n" + frameRule(!!sources?.length) : ""}`,
     },
     {
       role: "user",

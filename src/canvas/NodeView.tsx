@@ -97,6 +97,7 @@ function Tag({ n }: { n: GNode }) {
   if (n.compareOf) return <div className={`card-tag is-compare${n.searchMode === "off" ? " is-offline" : ""}`}>{n.searchMode === "off" ? "不联网回答" : "联网回答"}</div>;
   if (n.links.length && n.op) return <div className="card-tag is-link">{OP_LABEL[n.op]} {n.links.length} 个节点</div>;
   if (n.status === "error") return <div className="card-tag is-error">未完成</div>;
+  if (n.framed) return <div className="card-tag" data-replay-id={`framed-${n.id}`}>拆开来看</div>;
   if (!n.parent && !n.dir) return <div className="card-tag">初始提问</div>;
   return n.dir ? <div className="card-tag">{n.dir}</div> : null;
 }
