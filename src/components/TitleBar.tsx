@@ -1,11 +1,12 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, Minus, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { PACK_MODE } from "../core/devNet.ts";
 import { IN_APP } from "../core/http.ts";
 
 // 自定义标题栏：窗口没有系统装饰，顶栏空白处通过 data-tauri-drag-region 拖动（双击最大化），
 // 右侧放窗口按钮：沿用 Windows 的按钮位置与尺寸，图标与顶栏其他按钮同用 lucide、同尺寸同线宽。
-// 浏览器开发时不渲染窗口按钮。
+// 浏览器开发时不渲染窗口按钮；采集或重放数据包时照样画出来、点了没有作用，画面和桌面应用一致。
 
 /** 放在可拖动元素上；子元素按钮不受影响 */
 export const drag = IN_APP ? { "data-tauri-drag-region": "" } : {};
@@ -40,19 +41,19 @@ export function WindowControls() {
     return () => { void unlisten.then((f) => f()); };
   }, []);
 
-  if (!IN_APP) return null;
-  const win = getCurrentWindow();
+  if (!IN_APP && !PACK_MODE) return null;
+  const win = IN_APP ? getCurrentWindow() : null;
   return (
     <div className="window-controls">
-      <button type="button" className="wc" aria-label="最小化" onClick={() => void win.minimize()}>
+      <button type="button" className="wc" aria-label="最小化" onClick={() => void win?.minimize()}>
         <Minus size={ICON} strokeWidth={STROKE} />
       </button>
-      <button type="button" className="wc" aria-label={maximized ? "还原" : "最大化"} onClick={() => void win.toggleMaximize()}>
+      <button type="button" className="wc" aria-label={maximized ? "还原" : "最大化"} onClick={() => void win?.toggleMaximize()}>
         {maximized
           ? <Copy size={BOX} strokeWidth={BOX_STROKE} absoluteStrokeWidth style={{ transform: "scaleX(-1)" }} />
           : <Square size={BOX} strokeWidth={BOX_STROKE} absoluteStrokeWidth />}
       </button>
-      <button type="button" className="wc wc-close" aria-label="关闭" onClick={() => void win.close()}>
+      <button type="button" className="wc wc-close" aria-label="关闭" onClick={() => void win?.close()}>
         <X size={ICON} strokeWidth={STROKE} />
       </button>
     </div>

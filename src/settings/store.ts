@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { DEFAULT_MAIN_MODEL, VISIBLE_MODELS, type MainModel } from "../core/models.ts";
+import { PACK_MODE } from "../core/devNet.ts";
 import type { Prefs } from "../core/protocol.ts";
 
 // 用户的 API Key 只保存在本机：桌面应用里是应用自己的数据目录，不上传到任何地方。
@@ -106,8 +107,8 @@ export const settingsActions = {
   close: () => useSettings.setState({ open: false }),
 };
 
-/** 示例模式：只在开发环境通过 VITE_PROVIDERS=mock 打开，不出现在发布版本里 */
-export const MOCK_MODE = import.meta.env.DEV && import.meta.env.VITE_PROVIDERS === "mock";
+/** 示例模式：只在开发环境通过 VITE_PROVIDERS=mock 打开，不出现在发布版本里；地址指定了数据包（采集或重放）时以数据包为准 */
+export const MOCK_MODE = import.meta.env.DEV && import.meta.env.VITE_PROVIDERS === "mock" && !PACK_MODE;
 
 export const isConfigured = (s: Settings, search: boolean) => MOCK_MODE || (!!s.llmKey && (!search || !!s.searchKey));
 

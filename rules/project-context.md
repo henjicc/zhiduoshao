@@ -9,7 +9,7 @@ template_state: ready
 - 产品：「知多少」，一张会生长的知识地图。用户输入问题，先得到有来源、有时效的答案；系统再从答案延伸出具体问题（主动替用户提问），用户点开问题继续得到答案，逐层展开成画布上的知识树。
 - 产品形态：Tauri 2 桌面应用（Windows 安装包分发），没有任何后端服务。用户在应用「设置」里填写自己的 API Key，应用在本机直接请求腾讯接口。
   - 不做纯网页版的原因：元宝搜索与 TokenHub 均不允许浏览器跨域调用（2026-10 实测预检分别返回 403 / 405），网页无法直连；用户已明确不要服务器或转发。
-  - 唯一例外是开发工具（2026-10-29 加）：开发时（`npm run dev`）浏览器里的请求由 Vite 开发服务器转发。它只存在于开发服务器上、只给开发与演示录制用，不对用户发布；发布版和桌面应用（含 `app:dev`）的请求路径不变，不能借它做网页版或给用户提供转发。
+  - 唯一例外是开发工具（2026-10-29 加）：开发时（`npm run dev`）浏览器里的请求由 Vite 开发服务器转发，并可采集、重放数据包（见「运行与验证」的演示模式）。它只存在于开发服务器上、只给开发与演示录制用，不对用户发布；发布版和桌面应用（含 `app:dev`）的请求路径不变，不能借它做网页版或给用户提供转发。
 - 接入范围：只接入腾讯：大模型为混元（TokenHub 按量 API Key），搜索为元宝搜索（服务 API Key）。这是腾讯项目的约束。
 - 已确认的核心交互：
   - 问题 → 答案 → 延伸问题（只有标题，点开才检索）→ 答案，循环往复；任意答案可追问。
@@ -84,7 +84,7 @@ template_state: ready
     - 搜索更多来源：`AnswerRequest.more` 带上节点已用的查询词（`GNode.queries`）与已有来源，改写阶段换角度补充检索，已有来源序号不变、新来源接在后面，单节点最多 40 条（`SOURCES_CAP`），随后重新整理答案和延伸问题。资料：<https://cloud.tencent.com/document/product/1806/130615>、<https://cloud.tencent.com/document/api/1806/121811>。API Key 在 <https://console.cloud.tencent.com/wsapi/index?tab=apikey> 创建。
     - 已知行为（2026-10 实测）：错误都以 HTTP 200 + `Response.Error` 返回。密钥错误、缺失、被删除，或刚创建尚未生效（创建后数秒内实测如此，稍后即可用）时，一律返回 `UnauthorizedOperation`，无法区分具体是哪种；与 `Cnt` 参数、请求来源无关。
   - 错误映射：`searchError` / `llmError` 把服务错误码转为一句话结论 + 原因与处理办法（`ProviderError.info.hint`）+ 错误码与 RequestId。设置页测试连接时完整展示，映射关系有单测（`errors.test.ts`）。
-  - 示例供应商（`mock.ts` / `mock-data.ts`）只在开发环境且 `VITE_PROVIDERS=mock` 时启用，不得作为真实供应商失败时的回退；发布版本始终使用真实服务。
+  - 示例供应商（`mock.ts` / `mock-data.ts`）只在开发环境且 `VITE_PROVIDERS=mock` 时启用，不得作为真实供应商失败时的回退；地址带数据包参数（采集或重放）时以数据包为准、不用示例数据；发布版本始终使用真实服务。
 - 页面切换动画（[`lib/transition.ts`](../src/lib/transition.ts)）：打开历史、回首页用 View Transitions 交叉淡入；首页提问用 `morphToCard`：首页克隆成残影淡出，一个外壳从提问框连续形变（位置、尺寸、圆角、阴影）到第一张卡片：几何逐帧追踪真实卡片的当前位置（第一张卡片以纵向中心为锚点，加载中内容变化会让它上下移动，只瞄准起点位置会在落位时跳一下），落位后外壳在真实卡片上方再淡出 160ms 交接，内容层交叉缩放淡入淡出，落位后换成真实卡片（形变期间 `[data-morph]` 隐藏真实卡片）。新挂载的画布在挂载时读取 `screenTransition()` 定下进场类（`enter-self` / `enter-vt` / `enter-hero`）并保持不变；不要再用 `[data-vt]` 属性去关进场动画，否则过渡结束移除属性时动画会从透明重播，整页闪一下。
 - 网络与原生能力（可信边界）：
   - 请求经 [`src/core/http.ts`](../src/core/http.ts) 在桌面应用里走 Tauri HTTP 插件；开发时的浏览器里经 [`devNet.ts`](../src/core/devNet.ts) 交给 Vite 开发服务器转发（`vite.config.ts` 的 `/__zds/net`：只收本页面发来的请求，真实状态码与响应头放在 `x-zds-status` / `x-zds-headers` 里，转发本身总回 200，免得浏览器自己跟随重定向；流式响应边收边转）；发布版在普通浏览器里不能发真实请求（`CAN_FETCH`，首页与设置提示去桌面应用）。
@@ -93,7 +93,7 @@ template_state: ready
   - 内容安全策略（CSP）在 [`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json)，新增外部字体、图片或脚本来源时需同步调整。`connect-src` 里的 `ws://127.0.0.1:47831` 是痕迹AI 录制探针的本机连接（见下条）。
 - 痕迹AI 网页录制（2026-10 接入，按痕迹仓库 `docs/task/网页应用录制与重演/02-知多少适配说明.md`）：痕迹能把知多少的一次操作录成数据（请求与流式返回、Tauri 调用、存储、输入、元素），之后不联网重演。
   - 探针 `@henjicc/web-replay-probe` 在 [`src/henjiProbe.ts`](../src/henjiProbe.ts) 初始化，必须是 `main.tsx` 的第一条 import（zustand 持久化在导入期就读存储）。平时只安静地重试连接痕迹的本机端口，不接管任何东西。
-  - 网络出口 `httpFetch` 由探针的 `wrapFetch` 包装：外部接口一律经过它，不要直接用 Tauri HTTP 插件、`window.fetch`、XHR、WebSocket、EventSource 或 Worker 访问外部接口，否则录不下、重演失败。
+  - 网络出口 `httpFetch` 由探针的 `wrapFetch` 包装：外部接口一律经过它，不要直接用 Tauri HTTP 插件、`window.fetch`、XHR、WebSocket、EventSource 或 Worker 访问外部接口，否则录不下、重演失败。数据包的采集与重放包在探针里面（探针录下的就是重放给出的结果；痕迹重演时请求不会走到数据包，也不需要开发服务器）。
   - 元素标识 `data-replay-id`：节点容器 `node-<id>`、首页提问框 `ask-input` 与提交 `ask-submit`、设置 `settings`、回首页 `back`、关闭详情 `drawer-close`、历史条目 `history-<地图 id>`；检索过程里的读写对比 `written-<节点 id>`；拆题卡片的标签 `framed-<节点 id>`；问透的收尾记号 `settled-<节点 id>`；检索过程里的剔除列表 `dropped-<节点 id>`；总结面板路径回看的三块 `review-route`、`review-learned`、`review-more`（其中的先问 `review-next-<id>`）；推荐先问的那一行 `next-<问题节点 id>`（侧栏里为 `drawer-next-<id>`）。新加的标识放在非按钮元素上时用 `data-replay-id`，不要用 `data-act`：画布按下时遇到 `[data-act]` 就不处理拖动与点击。节点里带 `data-act` 的按钮优先按 `data-act` 定位、以外层 `data-replay-id` 为范围，其他位置记为“节点 + 相对位置”。改这些元素时保留标识。
   - 动作上报 `reportAction`（[`runs.ts`](../src/store/runs.ts)、[`graph.ts`](../src/store/graph.ts)）：`ask`、`search`（每轮检索）、`sources-read`（开始写答案）、`answered`、`detail`。
   - 包尚未发布到 npm：[`vite.config.ts`](../vite.config.ts) 的别名与 `tsconfig.json` 的 `paths` 直接指向本机痕迹仓库 `../Henji-AI/packages/web-replay-probe/src` 的源码（目录不存在时 Vite 启动后页面报错、类型检查报找不到模块），类型检查会按本项目的 TypeScript 7 一起检查它。发布后改成 npm 依赖并删掉别名和 `paths`。
@@ -126,4 +126,11 @@ template_state: ready
 - 存储隔离：Claude 桌面应用是 MSIX 打包的，从 Claude 工具（Bash / PowerShell）启动的进程，写入 `AppData\Local` 会被重定向到 `Packages\Claude_…\LocalCache`；用户终端标签页启动的应用使用真实路径。两边的设置与 Key 互不可见。需要用户已保存的 Key 做验证时，要在用户的终端标签页里启动应用（可临时加调试端口），不要从工具里启动。
 - 网络或原生改动必须在桌面窗口里验证：设环境变量 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9223` 启动应用，通过 CDP 在窗口内执行请求。
 - 开发服务：`.claude/launch.json` 的 `dev` 配置运行 `npm run dev`，`dev-mock` 在 17532 端口运行示例模式（就绪信号为 Vite `ready`）；停止时只结束该命令或核对过 PID 的进程。
+- 演示模式（数据包，2026-10-29 加，只在开发时的浏览器里有）：真实请求只跑一次，把每次外部调用（模型流式输出、元宝搜索、读网页）的原始返回存成数据包，之后按数据包重放，界面走的是和真用时完全一样的检索、解析与流式逻辑，屏幕上的内容都来自真实请求、不手改。
+  - 开关是地址参数（[`pack.ts`](../src/core/pack.ts) 的 `parsePackMode`）：`/?capture=名字` 采集，`/?replay=名字` 重放，可加 `speed`（倍速）、`cps` / `thinkCps`（每秒几字 / 思考每秒几字）、`firstMs`（首包延迟），都只作用于写答案、详解这类正文流；默认照采集时的真实节奏。研究决策、搜索与读网页一律照录制时间：决策有 12 秒时限、研究有 45 秒预算，变快变慢都可能走上和采集时不同的路、请求对不上。采集时超时或被取消的调用，重放时同样等调用方自己取消；采集中途停下、没录完的调用重放时按问题报出。
+  - 数据包由开发服务器读写（`/__zds/pack/名字`），存在 `.packs/<名字>.json`（`vite.config.ts` 的 `PACK_DIR`）。不存密钥：请求头与请求体里的密钥字段按名字去掉，请求里见过的密钥值在整份数据包里替换成 `***`。
+  - 对应关系：方法 + 网址 + 请求体，日期（YYYY-MM-DD）换成占位后比较，换一天也能命中；同样的请求按顺序取。对不上时不联网、不改用示例数据：请求失败，控制台写出最接近的一条从第几个字差起，页面底部出现红色错误条。数据包读取推迟到第一次请求。
+  - 重放时界面不出现任何「演示」「示例」字样；标题栏照样画出窗口按钮（点了没有作用），画面与桌面应用一致。卡片上「今天 21:39」这类相对时间按重放当天计算。
+  - 驱动页面的自动化脚本不在本仓库，按上面的地址参数打开页面。它等「节点答完」看卡片的 `data-done`（[`NodeView.tsx`](../src/canvas/NodeView.tsx)：回答完成且结论、要点都已放出），找推荐先问的延伸问题看 `is-next`，往当前节点的输入框（`is-current`）里打字，采集结束前调用 `window.__zdsPack.flush()` 等数据包写完；改卡片时保留这些标记。
+  - 实测（2026-10-29，两层回答加打开侧栏检索过程）：采集 17 次外部调用（研究决策 5、元宝搜索 10、写答案 2），数据包约 2MB、不含密钥；同一份脚本重放两遍，17 次全部命中、没有外部接口请求，两遍截图逐像素一致，与采集时的最终画面只差 1 个像素。页面另会加载来源网站图标（`<img>`，与真用时一样，不经数据包）。
 - 费用与权限：真实模式每次提问会调用付费的元宝搜索与 TokenHub 模型。验证优先用示例模式或无效密钥；真实调用只用用户提供的密钥，并控制次数。

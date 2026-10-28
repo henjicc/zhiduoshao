@@ -130,10 +130,12 @@ function AnswerCard({ n, active }: { n: GNode; active: boolean }) {
   // 开始输出、但正文还在攒第一段时，继续显示加载状态和思考流：不然卡片会先缩一下再长回来
   const loading = n.status === "loading" || n.status === "idle" || (n.status === "streaming" && !summary.settled && !summary.fresh.length);
   const streaming = n.status === "streaming";
+  // 回答完成且结论、要点都已放出：自动化脚本据此等「这个节点答完」
+  const shown = n.status === "ready" && summary.done && (!showPoints || pointsShown >= n.points.length);
 
   return (
     <>
-      <div className={`card${loading ? " is-loading" : ""}${streaming ? " is-streaming" : ""}${live ? " is-live" : ""}`} tabIndex={0}>
+      <div className={`card${loading ? " is-loading" : ""}${streaming ? " is-streaming" : ""}${live ? " is-live" : ""}`} data-done={shown || undefined} tabIndex={0}>
         <div ref={shell} className={`card-shell${scroll ? " is-scroll" : ""}`} style={style}>
           <div className="card-body" ref={body}>
             {/* 问题在左、标签在右上角，同一行；卡片内滚动时固定在顶部 */}

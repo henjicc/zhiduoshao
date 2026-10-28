@@ -1,11 +1,17 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { join } from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import { isPackName, PACK_FORMAT } from "./src/core/pack.ts";
 
 // 痕迹AI 的录制探针包尚未发布到 npm，暂时直接引用本机痕迹仓库里的源码（tsconfig.json 的 paths 同步）；发布后改为 npm 依赖并删掉这里
 const probeDir = fileURLToPath(new URL("../Henji-AI/packages/web-replay-probe/src", import.meta.url));
+
+/** 演示用的数据包目录（src/core/pack.ts） */
+const PACK_DIR = ".packs";
 
 // 同时服务于浏览器开发（示例模式）与 Tauri 桌面应用（tauri dev 会连接这个端口）
 export default defineConfig({
@@ -23,8 +29,9 @@ export default defineConfig({
 
 /**
  * 只在开发服务器上有、只给开发时的浏览器页面用（src/core/devNet.ts）：
- * POST /__zds/net 替页面转发外部请求（腾讯接口不允许浏览器跨域），响应边收边转，流式输出照样是流。
- * 只接受本页面自己发来的请求（Sec-Fetch-Site: same-origin），别的网页不能借它访问外网。
+ * - POST /__zds/net：替页面转发外部请求（腾讯接口不允许浏览器跨域），响应边收边转，流式输出照样是流；
+ * - GET / PUT /__zds/pack/名字：读写数据包文件。
+ * 只接受本页面自己发来的请求（Sec-Fetch-Site: same-origin），别的网页不能借它访问外网或写文件。
  */
 function devNet(): Plugin {
   return {
@@ -32,6 +39,7 @@ function devNet(): Plugin {
     apply: "serve",
     configureServer(server) {
       server.middlewares.use("/__zds/net", (req, res) => void forward(req, res).catch((err) => fail(res, err)));
+      server.middlewares.use("/__zds/pack/", (req, res) => void packFile(req, res).catch((err) => fail(res, err)));
     },
   };
 }
@@ -82,4 +90,30 @@ async function forward(req: IncomingMessage, res: ServerResponse) {
   res.flushHeaders();
   if (!up.body) return res.end();
   Readable.fromWeb(up.body as import("node:stream/web").ReadableStream).on("error", () => res.destroy()).pipe(res);
+}
+
+async function packFile(req: IncomingMessage, res: ServerResponse) {
+  if (!sameOrigin(req)) return reply(res, 403);
+  const name = decodeURIComponent((req.url ?? "").replace(/^\//, "").split("?")[0]);
+  if (!isPackName(name)) return reply(res, 400, "数据包名不合法");
+  const file = join(PACK_DIR, `${name}.json`);
+  if (req.method === "GET") {
+    try {
+      const text = await readFile(file, "utf8");
+      res.setHeader("content-type", "application/json; charset=utf-8");
+      return reply(res, 200, text);
+    } catch (err) {
+      return reply(res, (err as NodeJS.ErrnoException).code === "ENOENT" ? 404 : 500, String(err));
+    }
+  }
+  if (req.method === "PUT") {
+    const text = await readBody(req);
+    let pack: { format?: unknown };
+    try { pack = JSON.parse(text); } catch { return reply(res, 400, "不是 JSON"); }
+    if (pack.format !== PACK_FORMAT) return reply(res, 400, "不是数据包");
+    await mkdir(PACK_DIR, { recursive: true });
+    await writeFile(file, text, "utf8");
+    return reply(res, 204);
+  }
+  reply(res, 405);
 }
