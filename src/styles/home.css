@@ -57,4 +57,14 @@
 /* 列表行之间不画线，悬停时整行浅底 */
 .recent .hist-row:hover { background: var(--surface-hover); }
 .recent .hist-open { padding: 11px 8px; }
+/* 区域高度约五行半（露出半行也提示还能往下滚），更多的在里面滚动；原生滚动条隐藏，滑块画在列表右侧外面，不挤占行宽、时间列保持对齐 */
+.recent-scroll { position: relative; }
+.recent .hist-list {
+  max-height: calc(5.5 * 43px); overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.recent .hist-list::-webkit-scrollbar { display: none; }
+/* 下面还有内容时底部羽化，滚到底就去掉 */
+.recent .hist-list.has-more { mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent); }
+.recent .scroll-thumb { right: -12px; }
 .recent-head { padding-left: 8px; padding-right: 8px; }

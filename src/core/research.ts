@@ -40,8 +40,9 @@ const FRESHNESS = /^(d([1-9]|[12]\d|30)|m([1-9]|1[0-2])|y[1-5])$/;
 const DOMAIN = /^([a-z0-9-]+\.)+[a-z]{2,}$/;
 const SUFFIX_ONLY = /^(gov|com|edu|org|net|ac)\.[a-z]{2}$/;
 
-/** quick：模型判断为一轮搜索就能答的简单问题（单一事实、实时数据），搜到结果后不再复查，回答也不开思考 */
-export interface Plan { queries: SearchPlan[]; sources: number; quick?: boolean }
+/** quick：模型判断为一轮搜索就能答的简单问题（单一事实、实时数据），搜到结果后不再复查，回答也不开思考；
+ * missing：补充检索时模型写的「还缺什么」，显示在检索过程里 */
+export interface Plan { queries: SearchPlan[]; sources: number; quick?: boolean; missing?: string }
 
 /** 限定站点：只收一个域名，去掉协议、路径与端口；不合法时丢弃（照常全网搜） */
 function parseSite(v: unknown): string | undefined {
@@ -89,7 +90,10 @@ export function parseSearch(input: Record<string, unknown>, searched: string[], 
     if (queries.length < MAX_QUERIES && !queries.some((p) => queryKey(p) === open.q)) queries.push(open);
     else delete queries[queries.length - 1].site;
   }
-  if (!first) return { queries, sources: EXTRA_PER_ROUND };
+  if (!first) {
+    const missing = typeof input.missing === "string" ? input.missing.trim().slice(0, 60) : "";
+    return missing ? { queries, sources: EXTRA_PER_ROUND, missing } : { queries, sources: EXTRA_PER_ROUND };
+  }
   const n = Number(input.sources);
   const want = Number.isFinite(n) ? n : SOURCES_DEFAULT;
   const sources = Math.round(Math.min(SOURCES_MAX, Math.max(SOURCES_MIN, want, queries.length * PER_QUERY_MIN)));
@@ -100,8 +104,8 @@ export function parseSearch(input: Record<string, unknown>, searched: string[], 
 export const perQuery = (limit: number, queries: number) => Math.min(50, Math.max(10, Math.ceil((limit * 1.5) / queries / 10) * 10));
 
 /** 并行检索，交错合并多个查询的结果并按 id 去重，保证每个查询的头部结果都能入选；exclude 为已有来源。
- * results 为去重前的总条数，hits 为每个查询各返回几条（限定站点的查询可能为 0，要告诉模型） */
-async function searchAll(deps: ResearchDeps, plan: Plan, signal: AbortSignal, exclude: Set<string>): Promise<{ fresh: Source[]; results: number; hits: number[] }> {
+ * results 为去重前的总条数，unique 为其中不重复、也不是已有来源的条数，hits 为每个查询各返回几条（限定站点的查询可能为 0，要告诉模型） */
+async function searchAll(deps: ResearchDeps, plan: Plan, signal: AbortSignal, exclude: Set<string>): Promise<{ fresh: Source[]; results: number; unique: number; hits: number[] }> {
   if (!deps.search) throw new ProviderError("yuanbao", "尚未填写元宝搜索 API Key", undefined, "config");
   const count = perQuery(plan.sources, plan.queries.length);
   const lists = await Promise.all(plan.queries.map((p) => deps.search!.search(p.q, { count, freshness: p.freshness, industry: p.industry, site: p.site, signal })));
@@ -116,7 +120,8 @@ async function searchAll(deps: ResearchDeps, plan: Plan, signal: AbortSignal, ex
       }
     }
   }
-  return { fresh: out, results: lists.reduce((sum, l) => sum + l.length, 0), hits: lists.map((l) => l.length) };
+  const unique = new Set(lists.flat().map((s) => s.id).filter((id) => !exclude.has(id))).size;
+  return { fresh: out, results: lists.reduce((sum, l) => sum + l.length, 0), unique, hits: lists.map((l) => l.length) };
 }
 
 /** read 动作的参数：来源序号（1 起），只收没读过、在范围内的，每次最多 3 篇；一篇都不可用时返回 null */
@@ -139,7 +144,7 @@ export function parseRead(input: Record<string, unknown>, sources: Source[], lef
  */
 export async function* research(
   deps: ResearchDeps, question: string, path: { q: string }[], signal: AbortSignal,
-  opts: { note?: string; known?: Source[]; searched?: string[]; freshness?: string; exclude?: string[]; official?: boolean; memory?: string } = {},
+  opts: { note?: string; images?: string[]; known?: Source[]; searched?: string[]; freshness?: string; exclude?: string[]; official?: boolean; memory?: string } = {},
 ): AsyncGenerator<StreamEvent, { sources: Source[]; quick: boolean }> {
   const known = opts.known ?? [];
   const searched = [...(opts.searched ?? [])];
@@ -165,8 +170,8 @@ export async function* research(
     // 看看新进展或用户选了时间范围：由程序统一限定，模型给的不算；上一层已有的来源不算新内容
     const run = opts.freshness ? { ...plan, queries: plan.queries.map((p) => ({ ...p, freshness: opts.freshness })) } : plan;
     const started = Date.now();
-    const { fresh, results, hits } = await searchAll(deps, run, signal, new Set([...(opts.exclude ?? []), ...sources.map((s) => s.id)]));
-    yield { type: "searched", results, plans: run.queries.map((p, i) => ({ ...p, hits: hits[i], round: rounds })), ms: Date.now() - started };
+    const { fresh, results, unique, hits } = await searchAll(deps, run, signal, new Set([...(opts.exclude ?? []), ...sources.map((s) => s.id)]));
+    yield { type: "searched", results, unique, plans: run.queries.map((p, i) => ({ ...p, hits: hits[i], round: rounds })), ms: Date.now() - started, ...(plan.missing ? { reason: plan.missing } : {}) };
     const offset = sources.length;
     sources = [...sources, ...fresh].slice(0, cap);
     searched.push(...queries);
@@ -198,6 +203,7 @@ export async function* research(
       }
     }));
     const got = new Map(results.filter((r) => r.text).map((r) => [r.n, r.text!]));
+    yield { type: "read", titles: ids.map((n) => sources[n - 1].title), ok: got.size };
     if (got.size) {
       sources = sources.map((s, i) => (got.has(i + 1) ? { ...s, text: got.get(i + 1) } : s));
       yield { type: "sources", sources };
@@ -207,7 +213,7 @@ export async function* research(
 
   const spec: AgentSpec<Source[]> = {
     name: "research",
-    messages: researchPrompt(question, path, opts.note, searched, !!deps.reader, opts.official, opts.memory),
+    messages: researchPrompt(question, path, opts.note, searched, !!deps.reader, opts.official, opts.memory, opts.images),
     actions: {
       search: {
         parse: (input) => (canSearch() ? parseSearch(input, searched, rounds === 0) : null),

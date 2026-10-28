@@ -5,7 +5,7 @@ import { ago, groupOf, INTERRUPTED, matches, maxSeq, metaOf, restoreNodes, toRec
 
 const node = (p: Partial<GNode> & Pick<GNode, "id" | "q">): GNode => ({
   kind: "answer", dir: null, parent: null, links: [], op: null, instruction: null, children: [], collapsed: false,
-  status: "ready", stage: null, stageDetail: null, images: [], imageNote: "", summary: "", thinking: "", points: [], visual: null, memory: null, sources: [], queries: [], searchResults: 0, searches: [], searchMs: 0, searchMode: null, compareOf: null, answeredAt: 0, since: null, detail: "", detailStatus: "idle", error: null, errorCode: null, errorHint: null,
+  status: "ready", stage: null, stageDetail: null, images: [], imageNote: "", summary: "", thinking: "", points: [], visual: null, memory: null, sources: [], queries: [], searchResults: 0, searches: [], steps: [], searchMs: 0, searchMode: null, compareOf: null, answeredAt: 0, since: null, detail: "", detailStatus: "idle", error: null, errorCode: null, errorHint: null,
   dx: 0, dy: 0, ax: 0, ay: 0, ...p,
 });
 

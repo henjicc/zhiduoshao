@@ -25,24 +25,11 @@ function upsert(meta: MapMeta) {
   setH({ items: items.sort((a, b) => b.updatedAt - a.updatedAt) });
 }
 
-/** 已点删除、还在撤销窗口内的记录 */
-const deleting = new Map<string, { meta: MapMeta; timer: ReturnType<typeof setTimeout> }>();
-const UNDO_MS = 5000;
-
-async function commitDelete(id: string) {
-  deleting.delete(id);
-  try {
-    await deleteMap(id);
-  } catch (e) {
-    console.error("[history] 删除失败", e);
-  }
-}
-
 export const history = {
   async refresh() {
     try {
       const items = await listMeta();
-      setH({ items: items.filter((m) => !deleting.has(m.id)), loaded: true });
+      setH({ items, loaded: true });
     } catch (e) {
       console.error("[history] 读取失败", e);
       setH({ loaded: true });
@@ -62,21 +49,34 @@ export const history = {
     actions.leave(() => swapScreen(() => actions.openMap(r)));
   },
 
-  /** 先从列表移除，几秒内可撤销，之后才真正删除 */
+  /**
+   * 立即从列表和数据库删除，提示里可以撤销：撤销时把删除前读出的整条记录写回。
+   * 不再等撤销期过了才删：期间刷新或关窗，延时删除来不及执行，记录又会出现（用户反馈）
+   */
   remove(id: string) {
     const meta = useHistory.getState().items.find((m) => m.id === id);
     if (!meta) return;
     setH({ items: useHistory.getState().items.filter((m) => m.id !== id) });
-    deleting.set(id, { meta, timer: setTimeout(() => void commitDelete(id), UNDO_MS) });
+    const removed = getMap(id)
+      .then(async (record) => {
+        await deleteMap(id);
+        return record;
+      })
+      .catch((e) => {
+        console.error("[history] 删除失败", e);
+        return undefined;
+      });
     toast("已删除一条记录", {
       label: "撤销",
-      run: () => {
-        const d = deleting.get(id);
-        if (!d) return;
-        clearTimeout(d.timer);
-        deleting.delete(id);
-        upsert(d.meta);
-      },
+      run: () => void removed.then(async (record) => {
+        if (!record) return;
+        try {
+          await putMap(record, meta);
+          upsert(meta);
+        } catch (e) {
+          console.error("[history] 撤销删除失败", e);
+        }
+      }),
     });
   },
 
@@ -112,7 +112,7 @@ async function persist(map: NonNullable<Snapshot["map"]>, nodes: Snapshot["nodes
   try {
     await putMap(record, meta);
     failed = false;
-    if (!deleting.has(meta.id)) upsert(meta);
+    upsert(meta);
   } catch (e) {
     console.error("[history] 保存失败", e);
     if (!failed) toast("历史记录保存失败");
@@ -167,7 +167,7 @@ export function startAutosave() {
   useParked.subscribe((s, prev) => {
     for (const id of s.ids) {
       const p = parked.get(id);
-      if (p && !prev.ids.includes(id) && !deleting.has(id)) upsert(metaOf(toRecord(p.map.id, p.map.createdAt, p.map.updatedAt, p.nodes, p.view)));
+      if (p && !prev.ids.includes(id)) upsert(metaOf(toRecord(p.map.id, p.map.createdAt, p.map.updatedAt, p.nodes, p.view)));
     }
   });
 
@@ -183,14 +183,13 @@ export function startAutosave() {
     timer = setTimeout(() => void flushSave(), SAVE_DELAY);
   });
 
-  // 关窗前写完未保存的改动和待删除的记录；Tauri 会等待这个回调完成再关闭
+  // 关窗前写完未保存的改动；Tauri 会等待这个回调完成再关闭
   // 回调抛错或一直不返回都会让窗口关不掉：吞掉异常，最多等 1.5 秒
   const flushAll = async () => {
     const work = (async () => {
       await flushSave();
       // 后台还没回答完的地图也写一次，下次打开时未完成的节点标为中断、可重试
       await Promise.all([...parked.values()].map(saveParked));
-      await Promise.all([...deleting.keys()].map((id) => { clearTimeout(deleting.get(id)!.timer); return commitDelete(id); }));
     })();
     try {
       await Promise.race([work, new Promise((r) => setTimeout(r, 1500))]);

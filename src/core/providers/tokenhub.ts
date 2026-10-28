@@ -1,4 +1,4 @@
-import type { ModelProfile, ModelTier } from "../models.ts";
+import { seesImages, type ModelProfile, type ModelTier } from "../models.ts";
 import { ProviderError, type ChatMessage, type ChatOptions, type HttpFetch, type LLMProvider } from "./types.ts";
 
 // 腾讯云 TokenHub：按量 API Key，OpenAI Chat Completions 兼容协议；同一个 Key 可调用混元、DeepSeek 等模型
@@ -22,7 +22,7 @@ export function createTokenHub(cfg: TokenHubConfig): LLMProvider {
 
   async function request(messages: ChatMessage[], opts: ChatOptions, stream: boolean) {
     const p = cfg.models[opts.tier ?? "main"];
-    const thinking = p.thinking === null ? null : opts.thinking ?? p.thinking;
+    const effort = p.thinking === null ? null : opts.effort ?? p.thinking;
     let res: Response;
     try {
       res = await cfg.fetch(url, {
@@ -33,9 +33,9 @@ export function createTokenHub(cfg: TokenHubConfig): LLMProvider {
           messages,
           stream,
           temperature: opts.temperature ?? 0.4,
-          // 开启思考时用文档给出的较低推理深度，缩短首字等待；关闭思考用于简单的结构化步骤；
+          // 思考深度按环节分配（models.ts 的 Effort）：off 关闭思考，其余作为 reasoning_effort（low / high / max）；
           // 没有思考开关的模型（视觉模型）不带这两个字段
-          ...(thinking === null ? {} : thinking ? { reasoning_effort: "low" } : { thinking: { type: "disabled" } }),
+          ...(effort === null ? {} : effort === "off" ? { thinking: { type: "disabled" } } : { reasoning_effort: effort }),
           ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
           // JSON 模式：保证输出合法 JSON（提示词里必须写明要输出 JSON，否则可能一直输出空内容）
           ...(opts.json ? { response_format: { type: "json_object" } } : {}),
@@ -60,6 +60,7 @@ export function createTokenHub(cfg: TokenHubConfig): LLMProvider {
 
   return {
     name,
+    seesImages: seesImages(cfg.models),
     complete,
     async *stream(messages, opts = {}) {
       const res = await request(messages, opts, true);
@@ -112,13 +113,13 @@ export function llmError(status: number, raw: string) {
 }
 
 /** 设置页的连接测试：只验证密钥与模型是否可用。
- * 极简提示 + 关闭思考 + 限制输出，三档模型并行请求；耗时主要是网关往返（实测每个约 3–4 秒）。
+ * 极简提示 + 关闭思考 + 限制输出，各档模型并行请求（同一个模型只测一次）；耗时主要是网关往返（实测每个约 3–4 秒）。
  * 失败时指明是哪个模型，按主模型、轻量模型、视觉模型的顺序报告。 */
 export async function testTokenHub(cfg: TokenHubConfig) {
   const p = createTokenHub(cfg);
-  const tiers = ["main", "fast", "vision"] as const;
+  const tiers = (["main", "fast", "vision"] as const).filter((t, i, all) => all.findIndex((x) => cfg.models[x].model === cfg.models[t].model) === i);
   const results = await Promise.allSettled(
-    tiers.map((tier) => p.complete([{ role: "user", content: "回复 OK" }], { tier, thinking: false, maxTokens: 4, temperature: 0 })),
+    tiers.map((tier) => p.complete([{ role: "user", content: "回复 OK" }], { tier, effort: "off", maxTokens: 4, temperature: 0 })),
   );
   results.forEach((r, i) => {
     if (r.status === "fulfilled") return;

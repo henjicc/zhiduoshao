@@ -1,9 +1,10 @@
-import { Copy, RotateCw, X } from "lucide-react";
+import { Copy, FileDown, RotateCw, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Source, SummaryRequest } from "../core/protocol.ts";
 import { api } from "../api/client.ts";
 import { actions, chain, isReady, toContext, useGraph } from "../store/graph.ts";
-import { toast } from "../store/toast.ts";
+import { fileName } from "../lib/export.ts";
+import { copyText, saveMarkdown } from "../lib/save.ts";
 import type { GNode } from "../store/types.ts";
 import { Markdown, SourceItem } from "./common.tsx";
 import { usePresence } from "./presence.ts";
@@ -73,16 +74,14 @@ function Sheet({ closing }: { closing: boolean }) {
     return result.sources.map((s, i) => ({ s, i })).filter(({ i }) => used.has(i + 1));
   }, [result]);
 
-  const copy = async () => {
-    if (!result) return;
-    const refs = cited.map(({ s, i }) => `${i + 1}. ${s.title}（${s.site}）${s.url || "（权威卡片，无链接）"}`).join("\n");
-    try {
-      await navigator.clipboard.writeText(result.text.trim() + (refs ? `\n\n## 来源\n\n${refs}` : ""));
-      toast("已复制");
-    } catch {
-      toast("复制失败，请检查浏览器剪贴板权限");
-    }
+  /** 总结正文加上实际引用的来源列表：复制和下载用同一份 Markdown */
+  const markdown = () => {
+    if (!result) return "";
+    const refs = cited.map(({ s, i }) => `${i + 1}. ${s.url ? `[${s.title}](${s.url})` : `${s.title}（权威卡片，无链接）`}（${s.site}）`).join("\n");
+    return result.text.trim() + (refs ? `\n\n## 来源\n\n${refs}\n` : "\n");
   };
+  /** 下载的文件名取总结的标题（第一行「# 标题」） */
+  const title = () => result?.text.match(/^#\s+(.+)$/m)?.[1].trim() ?? "知多少总结";
 
   return (
     <div className={`dialog-layer${closing ? " is-closing" : ""}`}>
@@ -111,9 +110,15 @@ function Sheet({ closing }: { closing: boolean }) {
               <button type="button" className="btn btn-sm" onClick={() => setAttempt((a) => a + 1)}><RotateCw size={13} strokeWidth={1.8} />重试</button>
             </div>
           ) : !result || result.status === "loading" ? (
-            result?.thinking
-              ? <ThinkingStream text={result.thinking} lines={5} className="summary-thinking" />
-              : <div className="skeleton summary-skeleton"><i /><i /><i /><i /><i /></div>
+            // 还没开始输出：上面滚动显示模型的思考，下面用带光泽的横条占住正文的位置；开始输出正文时整块换成内容
+            <div className="summary-wait">
+              {result?.thinking
+                ? <ThinkingStream text={result.thinking} lines={4} className="summary-thinking" />
+                : <p className="summary-wait-label">正在整理总结…</p>}
+              <div className="skeleton summary-skeleton" aria-hidden="true">
+                <i className="is-title" /><i /><i /><i /><i /><i /><i /><i /><i />
+              </div>
+            </div>
           ) : (
             <Markdown text={result.text} sources={result.sources} streaming={result.status === "streaming"} lead />
           )}
@@ -128,9 +133,14 @@ function Sheet({ closing }: { closing: boolean }) {
         </article>
         <footer className="summary-foot">
           <span className="meta">{list.length} 个节点{cited.length ? `，引用 ${cited.length} 个来源` : ""}</span>
-          <button type="button" className="btn" onClick={copy} disabled={result?.status !== "ready"}>
-            <Copy size={14} strokeWidth={1.6} />复制文本
-          </button>
+          <span className="summary-actions">
+            <button type="button" className="btn" onClick={() => void copyText(markdown(), "已复制为 Markdown")} disabled={result?.status !== "ready"}>
+              <Copy size={14} strokeWidth={1.6} />复制
+            </button>
+            <button type="button" className="btn" onClick={() => void saveMarkdown(fileName(title()), markdown())} disabled={result?.status !== "ready"}>
+              <FileDown size={14} strokeWidth={1.6} />下载 Markdown
+            </button>
+          </span>
         </footer>
       </section>
     </div>

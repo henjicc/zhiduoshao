@@ -5,7 +5,7 @@ import { layout, ROW_GAP, slotKey } from "./layout.ts";
 
 const node = (p: Partial<GNode> & Pick<GNode, "id">): GNode => ({
   kind: "answer", dir: null, q: p.id, parent: null, links: [], op: null, instruction: null, children: [], collapsed: false,
-  status: "ready", stage: null, stageDetail: null, images: [], imageNote: "", summary: "", thinking: "", points: [], visual: null, memory: null, sources: [], queries: [], searchResults: 0, searches: [], searchMs: 0, searchMode: null, compareOf: null, answeredAt: 0, since: null,
+  status: "ready", stage: null, stageDetail: null, images: [], imageNote: "", summary: "", thinking: "", points: [], visual: null, memory: null, sources: [], queries: [], searchResults: 0, searches: [], steps: [], searchMs: 0, searchMode: null, compareOf: null, answeredAt: 0, since: null,
   detail: "", detailStatus: "idle", error: null, errorCode: null, errorHint: null, dx: 0, dy: 0, ax: 0, ay: 0, ...p,
 });
 
@@ -37,7 +37,7 @@ test("输入框排在当前节点子节点的最下方，并计入子树高度",
   assert.equal(layout({ ...nodes, r: { ...nodes.r, collapsed: true } }, sizes, "r").slot, null);
 });
 
-test("兄弟紧凑排列：前一个节点右侧的子节点列很长时，没展开的后一个兄弟紧贴在它下方；展开后其子节点避开同列的节点", () => {
+test("兄弟紧凑排列：前一个节点右侧的子节点列很长时，后一个兄弟仍紧贴在它下方；展开后只把它的子列往下挪、避开同列的节点", () => {
   const q = { w: 260, h: 44 };
   const base = {
     r: node({ id: "r", children: ["a", "b"] }),
@@ -51,11 +51,31 @@ test("兄弟紧凑排列：前一个节点右侧的子节点列很长时，没�
   const sizes = { r: { w: 340, h: 100 }, a: { w: 340, h: 120 }, b: q, a1: q, a2: q, a3: q, a4: q, b1: q };
   // a 的子列高 4 × 44 + 3 × 16 = 224，但没有子节点的 b 只需避开 a 本身
   assert.equal(layout(base, sizes).pos.b.y, 120 + ROW_GAP);
-  // b 有了子节点：子节点与 a 的子节点左右重叠，整棵 b 子树排到 a4 下方
+  // b 有了子节点：b 自己仍贴着 a，只有它的子列避开 a 的子列、排到 a4 下方（原来整棵子树连 b 一起被推到 a4 下方）
   const grown = { ...base, b: { ...base.b, kind: "answer" as const, children: ["b1"] }, b1: node({ id: "b1", kind: "question", parent: "b" }) };
   const l = layout(grown, { ...sizes, b: { w: 340, h: 120 } });
+  assert.equal(l.pos.b.y, 120 + ROW_GAP);
   assert.equal(l.pos.b1.y, l.pos.a4.y + 44 + ROW_GAP);
-  assert.equal(l.pos.b.y, l.pos.b1.y);
+});
+
+test("被挪开的子列不撞上后面的兄弟：b 的子列往下挪后，c 排在 b 的子列下方", () => {
+  const q = { w: 260, h: 44 }, a = { w: 340, h: 120 };
+  const nodes = {
+    r: node({ id: "r", children: ["a", "b", "c"] }),
+    a: node({ id: "a", parent: "r", children: ["a1", "a2", "a3", "a4"] }),
+    b: node({ id: "b", parent: "r", children: ["b1", "b2"] }),
+    c: node({ id: "c", parent: "r", children: ["c1"] }),
+    a1: node({ id: "a1", kind: "question", parent: "a" }), a2: node({ id: "a2", kind: "question", parent: "a" }),
+    a3: node({ id: "a3", kind: "question", parent: "a" }), a4: node({ id: "a4", kind: "question", parent: "a" }),
+    b1: node({ id: "b1", kind: "question", parent: "b" }), b2: node({ id: "b2", kind: "question", parent: "b" }),
+    c1: node({ id: "c1", kind: "question", parent: "c" }),
+  };
+  const sizes = { r: a, a, b: a, c: a, a1: q, a2: q, a3: q, a4: q, b1: q, b2: q, c1: q };
+  const { pos } = layout(nodes, sizes);
+  const boxes = Object.values(pos);
+  for (const p of boxes) for (const o of boxes) if (p !== o) assert.ok(!(p.x < o.x + o.w && o.x < p.x + p.w && p.y < o.y + o.h && o.y < p.y + p.h), "节点不重叠");
+  assert.equal(pos.b.y, pos.a.y + 120 + ROW_GAP);
+  assert.ok(pos.c1.y >= pos.b2.y + 44 + ROW_GAP);
 });
 
 test("主线拉直：沿第三个子节点往下追问，整条路径与根同一高度，前面的兄弟排到上方且不重叠", () => {

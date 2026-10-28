@@ -1,3 +1,4 @@
+import "./henjiProbe.ts";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { HistoryPanel } from "./components/History.tsx";

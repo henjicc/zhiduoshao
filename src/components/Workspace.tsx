@@ -21,7 +21,7 @@ function Topbar() {
   const hasAnswers = useGraph((s) => Object.values(s.nodes).some(isReady));
   return (
     <header className="topbar" {...drag}>
-      <button type="button" className="icon-btn topbar-back" aria-label="回到首页" onClick={() => actions.leave(() => swapScreen(actions.goHome))}>
+      <button type="button" className="icon-btn topbar-back" aria-label="回到首页" data-replay-id="back" onClick={() => actions.leave(() => swapScreen(actions.goHome))}>
         <ArrowLeft size={16} strokeWidth={1.6} />
       </button>
       <span className="topbar-sep" aria-hidden="true" {...drag} />
@@ -43,7 +43,7 @@ function Topbar() {
           <span className="btn-label">总结</span>
         </button>
         <HistoryButton />
-        <button type="button" className="icon-btn" aria-label="设置" onClick={settingsActions.open}>
+        <button type="button" className="icon-btn" aria-label="设置" data-replay-id="settings" onClick={settingsActions.open}>
           <Settings size={16} strokeWidth={1.6} />
         </button>
       </div>

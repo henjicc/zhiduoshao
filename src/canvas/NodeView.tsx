@@ -3,6 +3,7 @@ import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties,
 import { history } from "../history/store.ts";
 import { slotKey } from "./layout.ts";
 import { CiteNode, CiteText, Cites, SourceIcon, SourceStack } from "../components/common.tsx";
+import { ScrollThumb } from "../components/ScrollThumb.tsx";
 import { ThinkingStream } from "../components/ThinkingStream.tsx";
 import { splitPhrases, usePhraseReveal, useStagger, type Phrase } from "../components/smoothText.ts";
 import { VisualCard } from "../components/VisualCard.tsx";
@@ -64,17 +65,22 @@ function StatusText({ text, className }: { text: string; className: string }) {
 /** 卡片高度跟着内容平滑伸缩：外层高度设成里层的实际高度，由 CSS 过渡追过去；第一次量到时直接就位，不从 0 长出来 */
 function useSmoothHeight() {
   const body = useRef<HTMLDivElement>(null);
-  const [h, setH] = useState<{ px: number; animate: boolean } | null>(null);
+  const [h, setH] = useState<{ px: number; animate: boolean; scroll: boolean } | null>(null);
   useLayoutEffect(() => {
     const el = body.current!;
-    const set = () => setH((v) => ({ px: el.offsetHeight, animate: v !== null }));
+    const set = () => setH((v) => ({ px: el.offsetHeight, animate: v !== null, scroll: el.offsetHeight > shellMax(el.parentElement!) }));
     set();
     const ro = new ResizeObserver(set);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
   const style: CSSProperties | undefined = h ? { height: h.px, transition: h.animate ? undefined : "none" } : undefined;
-  return { body, style };
+  return { body, style, scroll: !!h?.scroll };
+}
+
+/** 卡片内容区的最大高度（CSS 的 --card-max-h），超出就在卡片里滚动 */
+function shellMax(shell: HTMLElement) {
+  return parseFloat(getComputedStyle(shell).maxHeight) || Infinity;
 }
 
 /** 一段文字的分段浮现：已经放完的并成普通文字，正在浮现的每段单独淡入 */
@@ -91,6 +97,7 @@ function Tag({ n }: { n: GNode }) {
   if (n.compareOf) return <div className={`card-tag is-compare${n.searchMode === "off" ? " is-offline" : ""}`}>{n.searchMode === "off" ? "不联网回答" : "联网回答"}</div>;
   if (n.links.length && n.op) return <div className="card-tag is-link">{OP_LABEL[n.op]} {n.links.length} 个节点</div>;
   if (n.status === "error") return <div className="card-tag is-error">未完成</div>;
+  if (!n.parent && !n.dir) return <div className="card-tag">初始提问</div>;
   return n.dir ? <div className="card-tag">{n.dir}</div> : null;
 }
 
@@ -117,7 +124,8 @@ function AnswerCard({ n, active }: { n: GNode; active: boolean }) {
   const summaryFinal = n.status !== "streaming" || n.points.length > 0 || !!n.visual;
   const summary = usePhraseReveal(n.summary, summaryFinal, live);
   const pointsShown = useStagger(n.points.length, summary.done, live);
-  const { body, style } = useSmoothHeight();
+  const { body, style, scroll } = useSmoothHeight();
+  const shell = useRef<HTMLDivElement>(null);
   // 开始输出、但正文还在攒第一段时，继续显示加载状态和思考流：不然卡片会先缩一下再长回来
   const loading = n.status === "loading" || n.status === "idle" || (n.status === "streaming" && !summary.settled && !summary.fresh.length);
   const streaming = n.status === "streaming";
@@ -125,11 +133,14 @@ function AnswerCard({ n, active }: { n: GNode; active: boolean }) {
   return (
     <>
       <div className={`card${loading ? " is-loading" : ""}${streaming ? " is-streaming" : ""}${live ? " is-live" : ""}`} tabIndex={0}>
-        <div className="card-shell" style={style}>
+        <div ref={shell} className={`card-shell${scroll ? " is-scroll" : ""}`} style={style}>
           <div className="card-body" ref={body}>
-            <Tag n={n} />
+            {/* 问题在左、标签在右上角，同一行；卡片内滚动时固定在顶部 */}
+            <div className="card-head">
+              <p className="card-q">{n.q}</p>
+              <Tag n={n} />
+            </div>
             <CardImages n={n} />
-            <p className="card-q">{n.q}</p>
             {loading ? (
               <>
                 <div className="status">
@@ -178,6 +189,7 @@ function AnswerCard({ n, active }: { n: GNode; active: boolean }) {
             )}
           </div>
         </div>
+        {scroll && <ScrollThumb scroller={shell} />}
       </div>
       {n.children.length > 0 && (
         <button
@@ -272,10 +284,10 @@ export const NodeView = memo(function NodeView({ id }: { id: string }) {
 
   useLayoutEffect(() => {
     const el = ref.current!;
-    // 卡片高度在平滑伸缩时，按里层内容的最终高度上报，布局一次排到位，不跟着动画逐帧重排
+    // 卡片高度在平滑伸缩时，按里层内容的最终高度上报（不超过最大高度），布局一次排到位，不跟着动画逐帧重排
     const shell = el.querySelector<HTMLElement>(".card-shell");
     const body = el.querySelector<HTMLElement>(".card-body");
-    const report = () => actions.setSize(id, el.offsetWidth, shell && body ? el.offsetHeight - shell.offsetHeight + body.offsetHeight : el.offsetHeight);
+    const report = () => actions.setSize(id, el.offsetWidth, shell && body ? el.offsetHeight - shell.offsetHeight + Math.min(body.offsetHeight, shellMax(shell)) : el.offsetHeight);
     report();
     const ro = new ResizeObserver(report);
     ro.observe(el);
@@ -287,7 +299,7 @@ export const NodeView = memo(function NodeView({ id }: { id: string }) {
   const cls = ["node", measured && "is-placed", active && "is-active", selected && "is-selected", dim && "dim", n.kind === "question" && "is-question", !n.parent && !n.links.length && "is-root"]
     .filter(Boolean).join(" ");
   return (
-    <div ref={ref} className={cls} data-id={id} style={{ transform: `translate(${box.x}px, ${box.y}px)` }}>
+    <div ref={ref} className={cls} data-id={id} data-replay-id={`node-${id}`} style={{ transform: `translate(${box.x}px, ${box.y}px)` }}>
       {n.kind === "question" ? <QuestionPill n={n} /> : <CiteNode.Provider value={id}><AnswerCard n={n} active={active} /></CiteNode.Provider>}
     </div>
   );

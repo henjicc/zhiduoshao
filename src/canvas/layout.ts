@@ -2,14 +2,14 @@ import type { GNode } from "../store/types.ts";
 
 export const COL_GAP = 72;
 export const ROW_GAP = 16;
-const DEFAULT = { answer: { w: 380, h: 140 }, question: { w: 260, h: 44 } };
+const DEFAULT = { answer: { w: 380, h: 140 }, question: { w: 380, h: 44 } };
 
 export interface Box { x: number; y: number; w: number; h: number }
 export type Sizes = Record<string, { w: number; h: number }>;
 /** 延伸列表底部的输入框：不是节点，只占一个子位置 */
 export interface Slot { parent: string; box: Box }
 export const slotKey = (parent: string) => `ask:${parent}`;
-const SLOT = { w: 260, h: 44 };
+const SLOT = { w: 380, h: 44 };
 
 /**
  * 从左到右的树形布局：每棵树的根以顶边固定在锚点，子节点与父节点顶边对齐、向下排开；拖动产生的偏移会带着整个子树移动。
@@ -43,27 +43,45 @@ export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: stri
       offset.set(key, y);
       for (const b of boxes) placed.push({ ...b, y: b.y + y });
     };
+    /** 子树根不动，只把它右边的子列（含输入框）整体挪 d：节点本身可以贴着上面的兄弟，子列另外找空位 */
+    const shiftKids = (c: GNode, boxes: Box[], d: number) => {
+      for (const k of kids(c)) offset.set(k.id, offset.get(k.id)! + d);
+      if (slotSize(c)) offset.set(slotKey(c.id), offset.get(slotKey(c.id))! + d);
+      return boxes.map((b, i) => (i === 0 ? b : { ...b, y: b.y + d }));
+    };
     let floor = 0;
-    const below = (key: string, boxes: Box[]) => {
-      // 不早于前一个兄弟，且避开已放下的、左右有重叠的矩形
+    const below = (key: string, boxes: Box[], c?: GNode) => {
+      // 不早于前一个兄弟。是子树时只让它自己的卡片避开已放下的矩形，贴着上面放；
+      // 它的子列要是和左右重叠的矩形撞上，就单独往下挪，而不是把整棵子树连同这张卡片一起推远（用户反馈：
+      // 上一个兄弟右边的子列很长时，这张卡片被推到很远的下方，中间空出一大块）
       let y = floor;
-      for (const b of boxes) for (const p of placed) if (overlapsX(b, p)) y = Math.max(y, p.y + p.h + ROW_GAP - b.y);
+      const own = c ? boxes.slice(0, 1) : boxes;
+      for (const b of own) for (const p of placed) if (overlapsX(b, p)) y = Math.max(y, p.y + p.h + ROW_GAP - b.y);
+      if (c && boxes.length > 1) {
+        let d = 0;
+        for (const b of boxes.slice(1)) for (const p of placed) if (overlapsX(b, p)) d = Math.max(d, p.y + p.h + ROW_GAP - b.y - y);
+        if (d > 0) boxes = shiftKids(c, boxes, d);
+      }
       commit(key, boxes, (floor = y));
     };
     let ceil = 0;
-    const above = (key: string, boxes: Box[]) => {
-      // 镜像：不晚于后一个兄弟，底边避开已放下的、左右有重叠的矩形
+    const above = (key: string, boxes: Box[], c: GNode) => {
+      // 镜像：不晚于后一个兄弟，卡片底边避开已放下的、左右有重叠的矩形；子列撞上时单独往上挪
       let y = ceil;
-      for (const b of boxes) for (const p of placed) if (overlapsX(b, p)) y = Math.min(y, p.y - ROW_GAP - b.y - b.h);
+      const b0 = boxes[0];
+      for (const p of placed) if (overlapsX(b0, p)) y = Math.min(y, p.y - ROW_GAP - b0.y - b0.h);
+      let d = 0;
+      for (const b of boxes.slice(1)) for (const p of placed) if (overlapsX(b, p)) d = Math.min(d, p.y - ROW_GAP - b.y - b.h - y);
+      if (d < 0) boxes = shiftKids(c, boxes, d);
       commit(key, boxes, (ceil = y));
     };
     const cs = kids(n);
     const k = Math.max(0, cs.findIndex((c) => spine.has(c.id)));
     const sub = cs.map(measure);
     // 主线子节点先放在 0；前面的兄弟只需避开它，后面的兄弟避开全部，上方兄弟垂下来的子列也不会被压住
-    if (cs.length) below(cs[k].id, sub[k]);
-    for (let i = k - 1; i >= 0; i--) above(cs[i].id, sub[i]);
-    for (let i = k + 1; i < cs.length; i++) below(cs[i].id, sub[i]);
+    if (cs.length) below(cs[k].id, sub[k], cs[k]);
+    for (let i = k - 1; i >= 0; i--) above(cs[i].id, sub[i], cs[i]);
+    for (let i = k + 1; i < cs.length; i++) below(cs[i].id, sub[i], cs[i]);
     const ss = slotSize(n);
     if (ss) below(slotKey(n.id), [{ x: 0, y: 0, w: ss.w, h: ss.h }]);
     return [...own, ...placed.map((b) => ({ ...b, x: b.x + col }))];
@@ -97,7 +115,8 @@ export function bounds(boxes: Box[]) {
   };
 }
 
-/** 连线从父节点标题行的高度引出（顶部固定布局下，父卡片再长也不影响连线起点），连到子节点竖直中心 */
+/** 连线从父节点标题行的高度引出（顶部固定布局下，父卡片再长也不影响连线起点），连到子节点竖直中心
+ * （2026-10 试过从父节点竖直中间引出，用户看过后改回） */
 const EDGE_TOP = 27;
 export function edgePath(a: Box, b: Box) {
   const x1 = a.x + a.w, y1 = a.y + Math.min(a.h / 2, EDGE_TOP), x2 = b.x, y2 = b.y + Math.min(b.h / 2, EDGE_TOP);

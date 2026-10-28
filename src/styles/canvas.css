@@ -26,6 +26,12 @@
 .edge.is-compare { stroke: var(--ink-4); stroke-dasharray: 1 5; stroke-linecap: round; stroke-width: 1.6; }
 .edge.dim { opacity: 0.5; }
 .stage.is-dragging .edge { transition: stroke var(--t-fast), opacity var(--t-fast); }
+/* 多选时按选中顺序串起各节点的虚线，用选中描边同一个颜色，淡入出现 */
+.sel-link {
+  fill: none; stroke: var(--accent-solid); stroke-opacity: 0.7; stroke-width: 1.5; stroke-dasharray: 5 5;
+  transition: d var(--t-mid) var(--ease); animation: fade var(--t-mid) var(--ease) both;
+}
+.stage.is-dragging .sel-link { transition: none; }
 @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 
 .marquee {
@@ -61,8 +67,15 @@
   outline: none;
   transition: border-color var(--t-fast), box-shadow var(--t-fast);
 }
-/* 卡片高度跟着内容平滑伸缩（NodeView 的 useSmoothHeight 设外层高度，过渡追过去）；布局按里层的最终高度排 */
-.card-shell { overflow: hidden; transition: height var(--t-grow) var(--ease-soft); }
+/* 卡片高度跟着内容平滑伸缩（NodeView 的 useSmoothHeight 设外层高度，过渡追过去）；布局按里层的最终高度排，最高 --card-max-h */
+.card-shell { max-height: var(--card-max-h); overflow: hidden; transition: height var(--t-grow) var(--ease-soft); }
+/* 内容超过最大高度：卡片里面滚动（鼠标在卡片上时滚轮只滚卡片，见 Canvas.tsx）。
+   原生滚动条隐藏，用 NodeView 的 ScrollThumb 自绘一条 3px 的细条，贴在卡片右内边距里，正文宽度不变；
+   悬停卡片或正在滚动时淡入，停下后淡出 */
+.card-shell.is-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.card-shell.is-scroll::-webkit-scrollbar { display: none; }
+.card { position: relative; }
+.card .scroll-thumb { right: 6px; }
 .card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-2); }
 /* 拖到另一个节点上：目标卡片描边、上方浮出提示，松手就连起来。用图表色（--viz-accent）而不是主题色：默认墨色方案的主题色是灰，提示不够醒目 */
 .node.is-drop-target { z-index: 5; }
@@ -96,7 +109,18 @@
 .card-tag.is-compare.is-offline::before { background: none; box-shadow: inset 0 0 0 var(--hair) var(--ink-3); }
 .card-tag.is-error { color: var(--danger); }
 .card-tag.is-error::before { background: var(--danger-solid); }
-.card-images { display: flex; gap: 4px; margin-bottom: 8px; }
+/* 问题与标签放在同一行：问题在左，标签（初始提问、方向、综合、对比、出错）在右上角，标签只有一两个词，单独一行太空；
+   内容在卡片里滚动时这一行固定在顶部，下沿淡出 */
+.card-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: flex-start; gap: 12px; background: var(--surface); }
+.card-head .card-q { flex: 1; min-width: 0; }
+.card-head .card-tag { flex: none; margin: 0; height: 22.5px; }
+.card-shell.is-scrolled .card-head::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 14px; pointer-events: none;
+  background: linear-gradient(var(--surface), transparent);
+}
+/* 下面还有内容时底部羽化，提示可以往下滚；滚到底就去掉（ScrollThumb 切换 has-more） */
+.card-shell.has-more { mask-image: linear-gradient(to bottom, #000 calc(100% - 110px), transparent); }
+.card-images { display: flex; gap: 4px; margin: 8px 0; }
 .card-images img { width: 40px; height: 40px; object-fit: cover; border-radius: var(--r-xs); box-shadow: inset 0 0 0 var(--hair) var(--line); display: block; }
 .card-q { margin: 0; font-size: var(--fs-lg); font-weight: 600; line-height: 1.5; letter-spacing: 0.01em; color: var(--ink); }
 /* 结论是用户第一眼要看的答案：中等字重、墨色，与灰色的要点拉开层级 */
@@ -270,8 +294,3 @@
 .slot-send:not(:disabled):hover { color: var(--accent); background: var(--surface-hover); }
 .slot-send:disabled { opacity: 0.4; }
 .slot.is-busy .slot-icon { color: var(--accent); }
-.world.lod-far .slot { display: none; }
-
-/* 缩小时只显示标题：画布缩小后字也跟着变小，这里用大一档补回来 */
-.world.lod-far :is(.card-images, .card-a, .card-meta, .points, .status, .card-skeleton, .card-thinking, .card-error, .pill-dir) { display: none; }
-.world.lod-far .card-q, .world.lod-far .pill-q { font-size: var(--fs-xl); }

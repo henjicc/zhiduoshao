@@ -22,11 +22,20 @@ export function startView(): View {
   return { x: Math.max(32, innerWidth * 0.1), y: Math.round(t + (b - t) * 0.14), s: 1, glide: false };
 }
 
+/**
+ * 用户自己最后一次平移、缩放画布的时间，和最后一次切换当前节点的时间。回答完成时的自动入镜（revealBranch 的 auto）
+ * 在用户切换节点之后动过画布就不再执行：不然一边输出一边拖画布，答完那一下会把视角强行拽回去（用户反馈）
+ */
+let userMovedAt = 0;
+let focusedAt = 0;
+
 export function setView(v: Partial<View>) {
+  userMovedAt = Date.now();
   set({ view: { ...get().view, glide: false, ...v } });
 }
 
 export function zoomAt(factor: number, cx: number, cy: number, glide = false) {
+  userMovedAt = Date.now();
   const v = get().view;
   const s = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, v.s * factor));
   set({ view: { s, x: cx - ((cx - v.x) * s) / v.s, y: cy - ((cy - v.y) * s) / v.s, glide } });
@@ -65,9 +74,14 @@ function reveal(ids: string[]) {
   if (dx || dy) set({ view: { ...v, x: v.x + dx, y: v.y + dy, glide: true } });
 }
 
-/** 等新内容完成测量后再调整视野：优先连父节点一起保留在屏幕内，保持来路可见 */
-export function revealBranch(id: string) {
+/**
+ * 等新内容完成测量后再调整视野：优先连父节点一起保留在屏幕内，保持来路可见。
+ * auto：回答完成时自动触发的，用户在切换到这个节点之后自己动过画布就不调整
+ */
+export function revealBranch(id: string, auto = false) {
+  if (!auto) focusedAt = Date.now();
   setTimeout(() => {
+    if (auto && userMovedAt > focusedAt) return;
     const n = get().nodes[id];
     if (!n) return;
     const branch = [id, ...(n.collapsed ? [] : n.children)];

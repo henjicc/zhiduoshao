@@ -2,7 +2,7 @@ import { Check, CircleAlert, ExternalLink, Eye, EyeOff, LoaderCircle, X } from "
 import { useEffect, useRef, useState } from "react";
 import { tracedFetch } from "../core/debug.ts";
 import { IN_APP, httpFetch } from "../core/http.ts";
-import { MAIN_MODELS, profiles } from "../core/models.ts";
+import { VISIBLE_MODELS, profiles } from "../core/models.ts";
 import { isPlanKey, testTokenHub } from "../core/providers/tokenhub.ts";
 import { ProviderError, type ProviderErrorInfo } from "../core/providers/types.ts";
 import { testYuanbao } from "../core/providers/yuanbao.ts";
@@ -86,16 +86,19 @@ function Dialog({ closing }: { closing: boolean }) {
                 link={LINKS.llm}
                 test={canTest && !planKey ? () => testTokenHub({ apiKey: llmKey, models: profiles(model), fetch: tracedFetch(httpFetch, "test-llm") }) : undefined}
               />
-              <div className="field">
-                <span className="field-label" id="model-label">模型</span>
-                <div className="segmented" role="radiogroup" aria-labelledby="model-label">
-                  {MAIN_MODELS.map((m) => (
-                    <button key={m.id} type="button" role="radio" aria-checked={model === m.id} onClick={() => model !== m.id && update({ model: m.id })}>
-                      {m.label}
-                    </button>
-                  ))}
+              {/* 只有一个可选模型时不显示选择 */}
+              {VISIBLE_MODELS.length > 1 && (
+                <div className="field">
+                  <span className="field-label" id="model-label">模型</span>
+                  <div className="segmented" role="radiogroup" aria-labelledby="model-label">
+                    {VISIBLE_MODELS.map((m) => (
+                      <button key={m.id} type="button" role="radio" aria-checked={model === m.id} onClick={() => model !== m.id && update({ model: m.id })}>
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </section>
   
             <section className="settings-section">

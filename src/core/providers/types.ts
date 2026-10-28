@@ -1,4 +1,4 @@
-import type { ModelTier } from "../models.ts";
+import type { Effort, ModelTier } from "../models.ts";
 import type { ErrorCode, Industry, Source } from "../protocol.ts";
 
 /** OpenAI 兼容的多模态内容块：图片用 data URL（base64）传入 */
@@ -16,8 +16,8 @@ export const textOf = (c: ChatMessage["content"]) =>
 export interface ChatOptions {
   /** 选用哪档模型，见 models.ts；默认 main */
   tier?: ModelTier;
-  /** 覆盖该档模型的思考开关（例如连接测试一律关闭） */
-  thinking?: boolean;
+  /** 覆盖该档模型的思考深度（例如连接测试关闭、简单问题用 low），见 models.ts 的 Effort */
+  effort?: Effort;
   /** 要求输出合法 JSON（OpenAI 兼容的 response_format: json_object），用于结构化决策 */
   json?: boolean;
   /** 限制输出长度 */
@@ -35,6 +35,8 @@ export interface ChatDelta {
 /** 大模型供应商：只暴露编排层需要的两种调用 */
 export interface LLMProvider {
   readonly name: string;
+  /** 研究与回答的模型能直接读图：为 true 时图片原样放进提示词，不再单独看图 */
+  readonly seesImages?: boolean;
   complete(messages: ChatMessage[], opts?: ChatOptions): Promise<string>;
   stream(messages: ChatMessage[], opts?: ChatOptions): AsyncIterable<ChatDelta>;
 }

@@ -1,12 +1,15 @@
 import { ArrowRight, History as HistoryIcon, LoaderCircle, Search, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { history, useHistory } from "../history/store.ts";
 import { ago, groupOf, matches, type Group, type MapMeta } from "../history/snapshot.ts";
 import { useGraph, useParked } from "../store/graph.ts";
 import { usePresence } from "./presence.ts";
 import { MetaParts } from "./common.tsx";
+import { ScrollThumb } from "./ScrollThumb.tsx";
 
+/** 首页「最近」一屏大约显示的行数（超过时「全部历史」旁显示总数）与最多列出的条数，再多的去历史面板找 */
 const RECENT = 5;
+const RECENT_MAX = 30;
 
 /** 把命中的关键词标出来 */
 function Highlight({ text, query }: { text: string; query: string }) {
@@ -23,7 +26,7 @@ function Row({ m, query = "", current, active, onHover, style }: RowProps) {
   const running = useParked((s) => s.ids.includes(m.id));
   return (
     <li className={`hist-row${active ? " is-active" : ""}`} style={style} onPointerEnter={onHover}>
-      <button type="button" className="hist-open" onClick={() => void history.open(m.id)}>
+      <button type="button" className="hist-open" data-replay-id={`history-${m.id}`} onClick={() => void history.open(m.id)}>
         <span className="hist-title"><Highlight text={m.title} query={query} /></span>
         <span className="hist-meta">
           {current ? <span className="hist-current">当前</span> : running ? <span className="hist-current"><LoaderCircle className="spin" size={12} strokeWidth={1.8} aria-hidden="true" />后台回答中</span> : <MetaParts items={[`${m.answers} 个回答`, ago(m.updatedAt)]} />}
@@ -38,10 +41,25 @@ function Row({ m, query = "", current, active, onHover, style }: RowProps) {
   );
 }
 
-/** 首页：最近几张地图 */
+/**
+ * 首页：最近的地图。区域高度约五行，更多的在区域里滚动：自绘细滚动条，下面还有内容时底部羽化，提示可以往下滚
+ */
 export function RecentList() {
   const items = useHistory((s) => s.items);
   const loaded = useHistory((s) => s.loaded);
+  const list = useRef<HTMLOListElement>(null);
+  const [scrollable, setScrollable] = useState(false);
+  const count = Math.min(items.length, RECENT_MAX);
+  useLayoutEffect(() => {
+    const el = list.current;
+    if (!el) return;
+    // 超出区域才显示滚动条；底部羽化由 ScrollThumb 切换的 has-more 类控制
+    const check = () => setScrollable(el.scrollHeight > el.clientHeight + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loaded, count > 0]);
   if (!loaded || !items.length) return null;
   return (
     <section className="recent" aria-labelledby="recent-title">
@@ -52,9 +70,12 @@ export function RecentList() {
           <ArrowRight size={13} strokeWidth={1.6} />
         </button>
       </div>
-      <ol className="hist-list">
-        {items.slice(0, RECENT).map((m, i) => <Row key={m.id} m={m} style={{ "--i": i } as React.CSSProperties} />)}
-      </ol>
+      <div className="recent-scroll">
+        <ol ref={list} className="hist-list">
+          {items.slice(0, RECENT_MAX).map((m, i) => <Row key={m.id} m={m} style={{ "--i": i } as React.CSSProperties} />)}
+        </ol>
+        {scrollable && <ScrollThumb scroller={list} />}
+      </div>
     </section>
   );
 }

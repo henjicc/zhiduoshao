@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { actions, chain, isReady, setView, useGraph, zoomAt, ZOOM_MAX, ZOOM_MIN } from "../store/graph.ts";
-import { edgePath } from "./layout.ts";
+import { edgePath, type Box } from "./layout.ts";
 import { usePresence } from "../components/presence.ts";
 import { AskSlot, focusSets, NodeView } from "./NodeView.tsx";
 import { ContextMenu, type MenuAt } from "./ContextMenu.tsx";
 import "../styles/canvas.css";
 
-const LOD_FAR = 0.55;
 const DRAG_THRESHOLD = 4;
 /** 视角停止变化多久后撤掉合成图层、按最终比例重绘 */
 const SETTLE_MS = 180;
@@ -61,12 +60,21 @@ type Drag =
 /** 卡片上能拖动整个节点的区域：标题行（问题）与上方的标签、附图；其余正文可以选中复制 */
 const DRAG_HANDLE = ".card-q, .card-tag, .card-images";
 
+/** 多选时按选中顺序把节点用虚线串起来：从前一个节点的中心连到后一个的中心，线压在卡片下面，只在卡片之间的空隙露出来 */
+function selectionPath(a: Box, b: Box) {
+  const x1 = a.x + a.w / 2, y1 = a.y + Math.min(a.h / 2, 60), x2 = b.x + b.w / 2, y2 = b.y + Math.min(b.h / 2, 60);
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - Math.min(80, Math.hypot(x2 - x1, y2 - y1) / 6);
+  return `M${x1},${y1} Q${mx},${my} ${x2},${y2}`;
+}
+
 function Edges() {
   const nodes = useGraph((s) => s.nodes);
   const pos = useGraph((s) => s.pos);
   const visible = useGraph((s) => s.visible);
   const activeId = useGraph((s) => s.activeId);
   const slot = useGraph((s) => s.slot);
+  const selected = useGraph((s) => s.selected);
+  const picked = selected.filter((id) => pos[id] && visible.includes(id));
   const focus = focusSets({ nodes, activeId });
   const vis = new Set(visible);
   return (
@@ -92,6 +100,9 @@ function Edges() {
       {slot && pos[slot.parent] && (
         <path key="slot" className="edge is-slot" style={{ d: `path("${edgePath(pos[slot.parent], slot.box)}")` }} />
       )}
+      {picked.slice(1).map((id, i) => (
+        <path key={`sel-${picked[i]}-${id}`} className="sel-link" style={{ d: `path("${selectionPath(pos[picked[i]], pos[id])}")` }} />
+      ))}
     </svg>
   );
 }
@@ -145,8 +156,14 @@ export function Canvas() {
     const el = stageRef.current!;
     const zoom = createSmoothZoom();
     const onWheel = (e: WheelEvent) => {
+      // 内容超长的卡片：鼠标在它上面时滚轮只滚卡片，滚到头也不缩放画布（用户要求）；按住 Ctrl（含触控板捏合）始终缩放
+      const box = (e.target as Element).closest?.<HTMLElement>(".card-shell.is-scroll");
+      if (box && !e.ctrlKey) {
+        if (e.deltaY < 0 ? box.scrollTop <= 0 : box.scrollTop + box.clientHeight >= box.scrollHeight - 1) e.preventDefault();
+        return;
+      }
       e.preventDefault();
-      // 滚轮（含 Ctrl + 滚轮、触控板捏合）一律缩放；平移靠拖动空白处。
+      // 其余滚轮（含 Ctrl + 滚轮、触控板捏合）一律缩放；平移靠拖动空白处。
       // 每次事件的缩放幅度封顶约 12%，鼠标一格不会跳太多，触控板的小增量仍然连续；实际缩放由 createSmoothZoom 平滑过渡。
       const px = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 800 : 1);
       zoom.by(Math.exp(-Math.sign(px) * Math.min(Math.abs(px) * 0.01, 0.12)), e.clientX, e.clientY);
@@ -189,13 +206,14 @@ export function Canvas() {
       drag.current = { type: "text", sx: e.clientX, sy: e.clientY, id: nodeEl.dataset.id!, moved: false };
       return;
     }
-    if (nodeEl && e.button === 0) {
+    // 按住 Shift 从任何地方拖都是框选（节点挤在一起时也能从卡片上开始框）；按住 Ctrl / ⌘ 点击是逐个加选，见 onNodeClick
+    if (e.shiftKey && e.button === 0) {
+      drag.current = { type: "marquee", sx: e.clientX, sy: e.clientY, base: selected, moved: false };
+      setMode("is-marquee");
+    } else if (nodeEl && e.button === 0) {
       const id = nodeEl.dataset.id!;
       const ids = selected.includes(id) ? selected : [id];
       drag.current = { type: "node", sx: e.clientX, sy: e.clientY, id, moved: false, orig: Object.fromEntries(ids.map((x) => [x, { dx: nodes[x].dx, dy: nodes[x].dy }])) };
-    } else if (e.shiftKey && e.button === 0) {
-      drag.current = { type: "marquee", sx: e.clientX, sy: e.clientY, base: selected, moved: false };
-      setMode("is-marquee");
     } else {
       drag.current = { type: "pan", sx: e.clientX, sy: e.clientY, ox: v.x, oy: v.y, moved: false };
     }
@@ -295,7 +313,7 @@ export function Canvas() {
     >
       <div
         ref={worldRef}
-        className={`world${view.s < LOD_FAR ? " lod-far" : ""}${view.glide ? " glide" : ""}`}
+        className={`world${view.glide ? " glide" : ""}`}
         style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.s})` }}
       >
         <Edges />
@@ -332,10 +350,11 @@ function dropTargetAt(x: number, y: number, dragging: Record<string, unknown>): 
   return null;
 }
 
-function onNodeClick(id: string, e: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) {
+/** 按住 Ctrl / ⌘ 点击回答节点：逐个加选或取消，不相邻的节点也能一起选；Shift 留给框选 */
+function onNodeClick(id: string, e: { ctrlKey: boolean; metaKey: boolean }) {
   const { nodes, activeId, selected } = useGraph.getState();
   const n = nodes[id];
-  if (e.ctrlKey || e.metaKey || e.shiftKey) {
+  if (e.ctrlKey || e.metaKey) {
     if (n.kind === "answer") actions.toggleSelected(id);
     return;
   }

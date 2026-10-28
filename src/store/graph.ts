@@ -7,11 +7,22 @@ import { activate, freeAt, freeSpot, revealBranch, startView } from "./view.ts";
 import { recordAngle, recordSite } from "../memory/store.ts";
 import { openExternal } from "../lib/external.ts";
 import { useSettings } from "../settings/store.ts";
+import { reportAction } from "@henjicc/web-replay-probe";
 
 // 画布对界面的入口：状态读取与界面触发的操作。状态与节点基础操作在 core.ts，视角在 view.ts，请求编排在 runs.ts。
 
 export { chain, isReady, newsSince, toContext, useGraph, useParked, type MapInfo, type View } from "./core.ts";
 export { fit, setView, viewport, zoomAt, ZOOM_MAX, ZOOM_MIN } from "./view.ts";
+
+/**
+ * 点选节点时的主线：点的是当前主线上的节点（比如从面包屑或画布点回前面的节点），保持现在的对齐不变，
+ * 路径本来就在一条线上，换主线反而会把后面的节点打乱（用户反馈）；点的是主线以外的节点才切过去
+ */
+function followSpine(id: string) {
+  const { nodes, spineId } = get();
+  if (spineId && nodes[spineId] && chain(nodes, spineId).some((n) => n.id === id)) return;
+  setSpine(id);
+}
 
 /** 离开地图时取消它的请求；已选择在后台继续的地图除外 */
 function cancelCurrent() {
@@ -163,7 +174,14 @@ export const actions = {
     activate(id);
   },
 
-  activate,
+  /**
+   * 点选一个节点：主线跟着切过来，从根到它的整条路径拉成一条水平线（用户选定的方案 A：点开新问题和点回已答节点一个规则，
+   * 原来只在提问时切换，点回老节点就不对齐）。setSpine 平移这棵树的根锚点，被点的节点停在原处，其他分支滑过去
+   */
+  activate(id: string) {
+    followSpine(id);
+    activate(id);
+  },
 
   toggleCollapse(id: string) {
     const { nodes, activeId } = get();
@@ -209,8 +227,10 @@ export const actions = {
   },
 
   openDrawer(id: string) {
+    followSpine(id);
     commitNodes(get().nodes, { drawerId: id, reading: null, ...focusOf(id) });
     revealBranch(id);
+    reportAction("detail", { nodeId: id });
   },
   closeDrawer: () => set({ drawerId: null, reading: null }),
 

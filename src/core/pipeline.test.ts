@@ -68,6 +68,18 @@ test("附图提问：先由视觉模型看图，描述进入回答提示词；�
   assert.deepEqual(calls.map((c) => c.tier), ["main"]);
 });
 
+test("模型能直接读图时不单独看图，图片原样放进回答提示词", async () => {
+  const { llm, calls } = fakeLLM(() => "结论：涨了。");
+  const deps = { llm: { ...llm, seesImages: true }, search: null, log: () => {} };
+  const req = { question: "这个贵吗？", path: [], existing: [], search: false, images: ["data:image/jpeg;base64,AAAA"] };
+  const events = await collect(answer(deps, req, new AbortController().signal));
+  assert.deepEqual(calls.map((c) => c.tier), ["main"]);
+  assert.ok(!events.some((e) => e.type === "stage" && e.stage === "see"));
+  const parts = calls[0].messages[1].content as ContentPart[];
+  assert.ok(parts.some((p) => p.type === "image_url"));
+  assert.match(lastText(calls[0].messages), /用户附带了上面的图片[\s\S]*问题：这个贵吗？/);
+});
+
 test("search 动作（首轮）：兼容纯字符串、丢弃非法参数、来源数收回到范围内", () => {
   const plan = parseSearch({ queries: ["a", { q: "b", time: "m1", field: "news" }, { q: "c", time: "m99", field: "sports" }, { q: "a" }, "d", "e"], sources: 50 }, [], true);
   assert.deepEqual(plan, {
@@ -78,6 +90,9 @@ test("search 动作（首轮）：兼容纯字符串、丢弃非法参数、来�
   assert.equal(parseSearch({ queries: ["x"], sources: 2 }, [], true)?.sources, 5);
   assert.equal(parseSearch({ queries: [] }, [], true), null);
   assert.equal(parseSearch({}, [], true), null);
+  // 补搜带上模型写的「还缺什么」，检索过程里显示；首轮不收
+  assert.equal(parseSearch({ queries: ["y"], missing: " 缺少最近一年的判例 " }, ["x"], false)?.missing, "缺少最近一年的判例");
+  assert.equal(parseSearch({ queries: ["y"], missing: "x" }, [], true)?.missing, undefined);
 });
 
 test("每个查询的条数按总量平分并取元宝档位", () => {
@@ -295,14 +310,14 @@ test("看看新进展：所有查询统一限定时间范围、跳过上一层�
   assert.doesNotMatch(system, /本次没有联网搜索/);
 });
 
-test("简单问题：规划标 quick 时搜到结果就不复查，主模型不开思考；没搜到结果照常复查", async () => {
-  const thinking: (boolean | undefined)[] = [];
+test("简单问题：规划标 quick 时搜到结果就不复查，主模型思考降到 low；没搜到结果照常复查", async () => {
+  const thinking: (string | undefined)[] = [];
   let fast = 0;
   const llm: LLMProvider = {
     name: "fake", complete: async () => "",
     async *stream(_m, opts = {}) {
       if (opts.tier === "fast") { fast++; yield { content: fast === 1 ? '{"action":"search","queries":["深圳 明天 天气"],"quick":true}' : '{"action":"done"}' }; return; }
-      thinking.push(opts.thinking);
+      thinking.push(opts.effort);
       yield { content: "结论：晴。" };
     },
   };
@@ -310,7 +325,7 @@ test("简单问题：规划标 quick 时搜到结果就不复查，主模型不�
   const events = await collect(answer({ llm, search, log: () => {} }, { question: "深圳明天天气", path: [], existing: [], search: true }, new AbortController().signal));
   assert.equal(fast, 1);
   assert.ok(!events.some((e) => e.type === "stage" && e.stage === "review"));
-  assert.deepEqual(thinking, [false]);
+  assert.deepEqual(thinking, ["low"]);
 
   fast = 0; thinking.length = 0;
   const empty = { name: "fake", search: async () => [] as Source[] };
@@ -339,9 +354,22 @@ test("回答偏好：时间范围限定所有查询，权威优先写进检索�
 });
 
 test("回答提示词按提问方式调整详略；用户自定义风格时以用户为准", () => {
-  const system = (style?: "concise" | "custom") =>
+  const system = (style?: "auto" | "concise" | "custom") =>
     answerPrompt("PHP 是啥", [], [], null, undefined, undefined, style && { style, customStyle: "一句话", sources: "auto", time: "auto" })[0].content as string;
   assert.ok(system().includes(READER_RULE));
   assert.ok(system("concise").includes(READER_RULE));
   assert.ok(!system("custom").includes(READER_RULE));
+  // 自动风格不加详略要求；简洁明了才限制成一两句
+  assert.ok(!system("auto").includes("回答风格"));
+  assert.match(system("concise"), /回答风格：简洁明了/);
+});
+
+test("回答提示词带时效规则：以最新来源为准，没联网时提醒知识可能过时", () => {
+  const src = [{ id: "a", n: 1, title: "t", url: "https://a.com", site: "a.com", snippet: "s", date: "2026-10-01" }] as unknown as Parameters<typeof answerPrompt>[3];
+  const withSearch = answerPrompt("什么是大语言模型", [], [], src)[0].content as string;
+  const offline = answerPrompt("什么是大语言模型", [], [], null)[0].content as string;
+  assert.match(withSearch, /今天是 \d{4}-\d{2}-\d{2}/);
+  assert.match(withSearch, /以发布时间最新的为准/);
+  assert.match(offline, /知识可能已经过时/);
+  assert.match(withSearch, /追问里至少有一条指向这个话题当前的前沿/);
 });

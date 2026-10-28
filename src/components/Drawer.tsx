@@ -84,7 +84,7 @@ function DrawerBody({ n }: { n: GNode }) {
           {kind && <span className="drawer-kind">{kind}</span>}
           <span className="drawer-q">{n.q}</span>
         </span>
-        <button type="button" className="icon-btn" aria-label="关闭详情" onClick={actions.closeDrawer}>
+        <button type="button" className="icon-btn" aria-label="关闭详情" data-replay-id="drawer-close" onClick={actions.closeDrawer}>
           <X size={16} strokeWidth={1.6} />
         </button>
       </div>

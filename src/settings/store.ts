@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { DEFAULT_MAIN_MODEL, MAIN_MODELS, type MainModel } from "../core/models.ts";
+import { DEFAULT_MAIN_MODEL, VISIBLE_MODELS, type MainModel } from "../core/models.ts";
 import type { Prefs } from "../core/protocol.ts";
 
 // 用户的 API Key 只保存在本机：桌面应用里是应用自己的数据目录，不上传到任何地方。
@@ -28,13 +28,13 @@ export interface Settings {
   prefs: Prefs;
 }
 
-export const DEFAULT_PREFS: Prefs = { style: "concise", customStyle: "", sources: "auto", time: "auto" };
+export const DEFAULT_PREFS: Prefs = { style: "auto", customStyle: "", sources: "auto", time: "auto" };
 
 /** 存档里的偏好逐项校验，不认识的值回到默认 */
 function cleanPrefs(v: unknown): Prefs {
   const p = (v && typeof v === "object" ? v : {}) as Partial<Prefs>;
   return {
-    style: p.style === "plain" || p.style === "deep" || p.style === "custom" ? p.style : "concise",
+    style: p.style === "concise" || p.style === "plain" || p.style === "deep" || p.style === "custom" ? p.style : "auto",
     customStyle: typeof p.customStyle === "string" ? p.customStyle : "",
     sources: p.sources === "official" ? "official" : "auto",
     time: p.time === "d7" || p.time === "m1" ? p.time : "auto",
@@ -68,15 +68,21 @@ export const useSettings = create<SettingsState>()(
     (): SettingsState => ({ searchKey: "", llmKey: "", model: DEFAULT_MAIN_MODEL, autoCollapse: false, autoDetail: false, openSource: "browser", drawerWidth: DRAWER_DEFAULT, onLeave: "background", theme: "system", palette: "ink", prefs: DEFAULT_PREFS, open: false }),
     {
       name: "zds-settings",
-      version: 2,
+      version: 3,
       // 版本 2：「切换节点时收起上一个节点的要点」默认改为保持展开（用户要求），老用户也改一次
-      migrate: (persisted, version) => (version < 2 ? { ...(persisted as object), autoCollapse: false } : persisted) as SettingsState,
+      // 版本 3：回答风格新增「自动」并设为默认，原来默认的「简洁明了」改为自动（用户反馈简洁明了答得太少），其他选择保留
+      migrate: (persisted, version) => {
+        let s = (persisted ?? {}) as Partial<SettingsState>;
+        if (version < 2) s = { ...s, autoCollapse: false };
+        if (version < 3 && s.prefs?.style === "concise") s = { ...s, prefs: { ...s.prefs, style: "auto" } };
+        return s as SettingsState;
+      },
       storage: createJSONStorage(() => localStorage),
       partialize: ({ searchKey, llmKey, model, autoCollapse, autoDetail, openSource, drawerWidth, onLeave, theme, palette, prefs }) => ({ searchKey, llmKey, model, autoCollapse, autoDetail, openSource, drawerWidth, onLeave, theme, palette, prefs }),
-      // 已下线的模型回到默认值
+      // 已下线或在设置页隐藏的模型回到默认值（2026-10 起混元隐藏，统一用 DeepSeek Flash）
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<Settings>;
-        const model = MAIN_MODELS.some((m) => m.id === p.model) ? p.model! : DEFAULT_MAIN_MODEL;
+        const model = VISIBLE_MODELS.some((m) => m.id === p.model) ? p.model! : DEFAULT_MAIN_MODEL;
         const openSource = p.openSource === "reader" ? "reader" : "browser";
         const drawerWidth = typeof p.drawerWidth === "number" && Number.isFinite(p.drawerWidth) ? p.drawerWidth : DRAWER_DEFAULT;
         const onLeave = p.onLeave === "stop" || p.onLeave === "ask" ? p.onLeave : "background";

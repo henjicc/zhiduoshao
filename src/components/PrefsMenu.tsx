@@ -6,15 +6,15 @@ import { memoryActions, useMemory } from "../memory/store.ts";
 import { useGraph } from "../store/graph.ts";
 import { usePresence } from "./presence.ts";
 
-const STYLES: [Prefs["style"], string][] = [["concise", "简洁明了"], ["plain", "通俗易懂"], ["deep", "详细深入"], ["custom", "自定义"]];
+const STYLES: [Prefs["style"], string][] = [["auto", "自动"], ["concise", "简洁明了"], ["plain", "通俗易懂"], ["deep", "详细深入"], ["custom", "自定义"]];
 const SOURCES: [Prefs["sources"], string][] = [["auto", "自动"], ["official", "权威优先"]];
 const TIMES: [Prefs["time"], string][] = [["auto", "自动"], ["d7", "近一周"], ["m1", "近一个月"]];
 
-/** 按钮上显示当前风格，来源与时间不是自动时也带上 */
+/** 按钮上显示不是自动的那几项；全是自动时显示「回答偏好」 */
 function summary(p: Prefs) {
-  const style = p.style === "custom" && p.customStyle.trim() ? p.customStyle.trim().slice(0, 6) : STYLES.find(([v]) => v === p.style)![1];
-  const extra = [p.sources !== "auto" && "权威优先", TIMES.find(([v]) => v === p.time && v !== "auto")?.[1]].filter(Boolean);
-  return [style, ...extra].join("、");
+  const style = p.style === "auto" ? null : p.style === "custom" && p.customStyle.trim() ? p.customStyle.trim().slice(0, 6) : STYLES.find(([v]) => v === p.style)![1];
+  const parts = [style, p.sources !== "auto" && "权威优先", TIMES.find(([v]) => v === p.time && v !== "auto")?.[1]].filter(Boolean);
+  return parts.length ? parts.join("、") : "回答偏好";
 }
 
 function Choice<T extends string>({ label, options, value, onChange }: { label: string; options: [T, string][]; value: T; onChange: (v: T) => void }) {

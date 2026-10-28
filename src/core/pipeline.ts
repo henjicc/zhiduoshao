@@ -26,10 +26,10 @@ async function* see(deps: Deps, question: string, images: string[], signal: Abor
   return text.trim();
 }
 
-/** 主模型整理答案；简单问题关掉思考（实测思考要写约 2000 字、占整次回答的大部分时间） */
+/** 主模型整理答案；简单问题（快速路径）思考降到 low（混元时代实测思考要写约 2000 字、占整次回答的大部分时间；用户要求不完全关掉） */
 async function* compose(deps: Deps, messages: Parameters<LLMProvider["stream"]>[0], sourceCount: number, signal: AbortSignal, thinking = true): AsyncGenerator<StreamEvent> {
   const parser = new AnswerParser(sourceCount);
-  for await (const d of deps.llm.stream(messages, thinking ? { signal } : { signal, thinking: false })) {
+  for await (const d of deps.llm.stream(messages, thinking ? { signal } : { signal, effort: "low" })) {
     if (d.reasoning) yield { type: "thinking", delta: d.reasoning };
     if (d.content) yield* parser.push(d.content);
   }
@@ -39,7 +39,9 @@ async function* compose(deps: Deps, messages: Parameters<LLMProvider["stream"]>[
 export async function* answer(deps: Deps, req: AnswerRequest, signal: AbortSignal): AsyncGenerator<StreamEvent> {
   let sources: Source[] | null = null;
   let note = req.imageNote;
-  if (req.images?.length && !note) {
+  // 模型能直接读图时图片原样交给研究与回答；否则先由视觉模型转成文字（存到节点上，重试时不再识别）
+  const images = req.images?.length && !note && deps.llm.seesImages ? req.images : undefined;
+  if (req.images?.length && !note && !images) {
     yield { type: "stage", stage: "see", detail: { count: req.images.length } };
     note = yield* see(deps, req.question, req.images, signal);
     yield { type: "vision", text: note };
@@ -49,13 +51,13 @@ export async function* answer(deps: Deps, req: AnswerRequest, signal: AbortSigna
   const official = req.prefs?.sources === "official";
   let quick = false;
   if (req.search) {
-    ({ sources, quick } = yield* research(deps, req.question, req.path, signal, { note, known: req.more?.sources, searched: req.more?.queries, freshness, exclude: req.exclude, official, memory: req.memory?.research }));
+    ({ sources, quick } = yield* research(deps, req.question, req.path, signal, { note, images, known: req.more?.sources, searched: req.more?.queries, freshness, exclude: req.exclude, official, memory: req.memory?.research }));
     yield { type: "stage", stage: "read", detail: { count: sources.length } };
   }
   yield { type: "stage", stage: "compose" };
   // 看看新进展没查到新内容时也按「只用来源」回答，让模型如实说没有新进展，而不是凭记忆补
   const material = sources?.length || (req.since && sources) ? sources : null;
-  yield* compose(deps, answerPrompt(req.question, req.path, req.existing, material, note, req.since, req.prefs, req.memory), sources?.length ?? 0, signal, !quick);
+  yield* compose(deps, answerPrompt(req.question, req.path, req.existing, material, note, req.since, req.prefs, req.memory, images), sources?.length ?? 0, signal, !quick);
   yield { type: "done" };
 }
 

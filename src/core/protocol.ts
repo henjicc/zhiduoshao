@@ -20,6 +20,11 @@ export interface SearchLog extends SearchPlan {
   round: number;
 }
 
+/** 检索过程里的一步，侧边栏「检索过程」按顺序画成时间线：一轮搜索（带补搜理由与去重数），或一次读全文 */
+export type ResearchStep =
+  | { kind: "search"; round: number; reason?: string; results: number; unique: number; ms: number; queries: SearchLog[] }
+  | { kind: "read"; titles: string[]; ok: number };
+
 /** 查询的唯一写法：限定站点的写成「查询词 site:域名」，用于去重、「已搜过」与界面显示 */
 export const queryKey = (p: SearchPlan) => (p.site ? `${p.q} site:${p.site}` : p.q);
 
@@ -87,8 +92,8 @@ export interface NodeContext {
 
 /** 用户在输入框旁选的回答偏好；都取默认值时等于不额外要求 */
 export interface Prefs {
-  /** concise 为默认的简洁明了 */
-  style: "concise" | "plain" | "deep" | "custom";
+  /** auto 为默认：由模型按问题决定详略；concise 简洁明了 */
+  style: "auto" | "concise" | "plain" | "deep" | "custom";
   /** style 为 custom 时用户自己写的要求 */
   customStyle: string;
   /** official：检索时优先官方网站与权威来源 */
@@ -169,8 +174,11 @@ export type StreamEvent =
   | { type: "ask"; question: string }
   | { type: "title"; text: string }
   | { type: "sources"; sources: Source[] }
-  /** 一轮元宝搜索完成：服务返回的结果条数（多个查询合计，去重前） */
-  | { type: "searched"; results: number; plans: SearchLog[]; ms: number }
+  /** 一轮元宝搜索完成：服务返回的结果条数（多个查询合计，去重前）、其中不重复的新结果数（去掉本轮内重复和已有来源），
+   * 以及补充检索的理由（研究助手判断还缺什么；第一轮没有） */
+  | { type: "searched"; results: number; plans: SearchLog[]; ms: number; unique: number; reason?: string }
+  /** 研究助手读了几篇来源的全文：标题与读成功的篇数 */
+  | { type: "read"; titles: string[]; ok: number }
   | { type: "summary"; delta: string }
   | { type: "point"; point: Point }
   | { type: "visual"; visual: Visual }

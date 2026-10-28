@@ -6,13 +6,17 @@
 :root {
   color-scheme: light;
 
-  /* 页面与容器：画布用 2，卡片、面板、弹层用 1（浅色下比画布亮一层） */
-  --bg: var(--gray-2);
+  /* 页面与容器：画布用 3，卡片、面板、弹层用 1（浅色下比画布亮两层，卡片像纸放在浅灰的桌面上；
+     2026-10 用户觉得满屏发白、卡片和背景分不开，画布从 2 压到 3） */
+  --bg: var(--gray-3);
   --bg-dot: var(--gray-6);
   --surface: var(--gray-1);
   --surface-sunken: var(--gray-3);
   --surface-hover: var(--gray-3);
   --surface-active: var(--gray-4);
+  /* 直接压在画布底色上的控件（顶栏按钮、首页标题栏、首页「最近」列表）：底色已是 3，悬停与按下各深一阶，否则看不出来 */
+  --bg-hover: var(--gray-4);
+  --bg-active: var(--gray-5);
   /* 文字：主要 12、次要 11；10 只用于辅助信息，8 只用于占位符、禁用与装饰 */
   --ink: var(--gray-12);
   --ink-2: var(--gray-11);
@@ -66,9 +70,13 @@
   --viz-5: #cf3897;
   --viz-accent: var(--viz-1);
   --visual-bg: #e6f4fe; /* blue-3 */
+  /* 引用高亮：荧光笔式的黄色，不随配色方案变化（默认墨色方案的强调色是灰，用它做高亮几乎看不出来，用户反馈）；
+     --mark 是被引用的句子，--mark-strong 是阅读视图里当前选中的那句 */
+  --mark: #ffe3016b;        /* yellow-a4 */
+  --mark-strong: #ffd5008f; /* yellow-a5 */
 
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.05);  /* black-a1 */
-  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.05), 0 6px 20px -8px rgba(0, 0, 0, 0.15);   /* black-a1、a3 */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px -10px rgba(0, 0, 0, 0.16);
   --shadow-3: 0 2px 6px rgba(0, 0, 0, 0.05), 0 24px 56px -16px rgba(0, 0, 0, 0.2);  /* black-a1、a4 */
 
   /* 全站一套无衬线。-apple-system 只在苹果系统生效，即苹方；其他系统依次找 HarmonyOS Sans、MiSans（字重全），
@@ -96,7 +104,10 @@
   --titlebar-h: 40px;
   --drawer-w: 420px;
   --card-w: 380px;
-  --pill-w: 260px;
+  /* 回答卡片内容区的最大高度，超出在卡片里滚动 */
+  --card-max-h: 600px;
+  /* 延伸问题和输入框与回答卡片同宽（用户要求，原来 260） */
+  --pill-w: var(--card-w);
 
   /* 动效：只留解释状态变化的（出现、展开、移动、加载），基础 250ms ease-out；悬停变色更短；退场用 --ease-in 并取更短一档 */
   --ease: cubic-bezier(0.215, 0.61, 0.355, 1); /* ease-out */
@@ -121,6 +132,8 @@
     --surface-hover: var(--gray-4);
     --surface-sunken: var(--gray-3);
     --surface-active: var(--gray-5);
+    --bg-hover: var(--gray-4);
+    --bg-active: var(--gray-5);
     --danger: #ff9592;
     --danger-soft: #ff173f2d;
     --danger-line: #ff536184;
@@ -132,6 +145,8 @@
     --viz-4: #6e56cf;
     --viz-5: #d6409f;
     --visual-bg: #111927; /* blue-2 */
+    --mark: #fdcb225c;        /* yellow-a7（深色） */
+    --mark-strong: #fdca327b; /* yellow-a8（深色） */
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -8px rgba(0, 0, 0, 0.5);
     --shadow-3: 0 2px 6px rgba(0, 0, 0, 0.3), 0 24px 56px -16px rgba(0, 0, 0, 0.7);
@@ -144,6 +159,8 @@
   --surface-hover: var(--gray-4);
   --surface-sunken: var(--gray-3);
   --surface-active: var(--gray-5);
+  --bg-hover: var(--gray-4);
+  --bg-active: var(--gray-5);
   --danger: #ff9592;
   --danger-soft: #ff173f2d;
   --danger-line: #ff536184;
@@ -155,6 +172,8 @@
   --viz-4: #6e56cf;
   --viz-5: #d6409f;
   --visual-bg: #111927;
+  --mark: #fdcb225c;
+  --mark-strong: #fdca327b;
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -8px rgba(0, 0, 0, 0.5);
   --shadow-3: 0 2px 6px rgba(0, 0, 0, 0.3), 0 24px 56px -16px rgba(0, 0, 0, 0.7);

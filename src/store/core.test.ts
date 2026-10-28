@@ -6,7 +6,7 @@ import type { GNode } from "./types.ts";
 const node = (p: Partial<GNode>): GNode => ({
   id: "n1", kind: "answer", dir: null, q: "问", parent: null, links: [], op: null, instruction: null, children: [], collapsed: false,
   status: "ready", stage: null, stageDetail: null, images: [], imageNote: "", summary: "", thinking: "", points: [], visual: null, memory: null, queries: [],
-  searchResults: 0, searches: [], searchMs: 0, searchMode: null, compareOf: null, answeredAt: 0, since: null, detail: "", detailStatus: "idle", error: null, errorCode: null, errorHint: null, dx: 0, dy: 0, ax: 0, ay: 0,
+  searchResults: 0, searches: [], steps: [], searchMs: 0, searchMode: null, compareOf: null, answeredAt: 0, since: null, detail: "", detailStatus: "idle", error: null, errorCode: null, errorHint: null, dx: 0, dy: 0, ax: 0, ay: 0,
   sources: [{ id: "u", title: "t", url: "u", site: "s", snippet: "", date: "2026-10-10" }, { id: "v", title: "t", url: "v", site: "s", snippet: "", date: "2026-10-12 08:00:00" }],
   ...p,
 });

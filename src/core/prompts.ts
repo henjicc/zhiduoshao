@@ -28,9 +28,9 @@ const VISUAL_RULE = `数据：可选的可视化卡片。搜索结果里有合�
 每一项只标一到两个最直接的来源序号。标题不超过 16 字。这一行放在结论下面，必须以「数据：」开头，后面接整段写成一行的 JSON；要点不要重复这里已经列出的数据。`;
 
 const format = (visual: boolean) => `按下面的纯文本格式输出，不要 Markdown，不要多余的话：
-结论：第一句就是精准的答案本身——具体的结论、数字、日期、是或否、该怎么做，不铺垫、不复述问题；一般一到两句，问题宽泛、需要先给出框架时也不超过 100 字。${visual ? "\n" + VISUAL_RULE : ""}
+结论：第一句就是精准的答案本身——具体的结论、数字、日期、是或否、该怎么做，不铺垫、不复述问题。长度按问题需要，不设字数：单一事实一两句就够；需要理解的问题写成一段完整、好懂的解释，通常两到四句：先用大白话说清它是什么、怎么回事，必要时打个比方，最后一句带出它现在的状态。要简洁，但信息量要足，不要为了短而省掉关键信息。结论里少用术语，非用不可的顺手解释；排名、参数、价格、百分比这类数字不放结论，放进要点或数据卡片；不要用“到某年某月”“截至目前”开头。${visual ? "\n" + VISUAL_RULE : ""}
 要点：
-- 按需要写 2 到 6 条，每条一句话、不超过 50 字；单一事实（某个数字、日期、是否）少写，需要理解的问题多写。卡片只放够用的精简回答，更详细的展开留给详情页，这里不要堆细节。
+- 按需要写 2 到 6 条，每条是结论之外的一个补充知识点：一到三句，讲清一件具体的事（例子、数据、原理、区别或注意事项），不要只写一个短语，也不要重复结论说过的话；单一事实（某个数字、日期、是否）少写，需要理解的问题多写。更系统的展开留给详情页。
 追问：
 [角度] 具体问句，每条不超过 22 字。数量由你按这个问题真正值得继续追问的方向决定，最多 6 条，宁少勿滥，不要凑数；问题已经答完整、没有值得继续追问的方向时，这一段只写「追问：无」。角度是 2 到 4 字的标签，按方向自拟（如原因、影响、对比、成本、风险、历史、替代方案），各条角度尽量不同；“已有问题”是地图上已经展开过的，不要重复或同义。
 
@@ -56,12 +56,13 @@ const CITE_RULE = `以搜索结果为主要依据，句末用 [序号] 标注来
  * 问题里已经带着术语、条件或对比，说明对方懂行，直接给精准答案。用户自定义了回答风格时以用户为准，不加这条
  */
 export const READER_RULE = `先从提问方式判断对方懂多少，再决定答多细：
-- 问题很短、很基础，没有任何限定或背景（如“X 是啥”“什么是 X”“X 有什么用”），说明对方几乎不了解这个领域，按入门读者来答：结论用大白话说清它是什么、主要用来做什么，可以写到两三句（仍不超过 100 字）；要点写 4 到 6 条，覆盖它能做什么、大致怎么运作、和对方可能熟悉的东西有什么关系，最好带一个具体例子；术语第一次出现时顺手用半句话解释；追问优先给入门路径上的下一步（怎么上手、和相近概念的区别、常见用途）。
+- 问题很短、很基础，没有任何限定或背景（如“X 是啥”“什么是 X”“X 有什么用”），说明对方几乎不了解这个领域，按入门读者来答：结论用大白话说清它是什么、主要用来做什么、现在发展到什么程度；要点写 4 到 6 条，覆盖它能做什么、大致怎么运作、和对方可能熟悉的东西有什么关系，最好带一个具体例子；术语第一次出现时顺手用半句话解释；追问优先给入门路径上的下一步（怎么上手、和相近概念的区别、常见用途）。
 - 问题里已经带着专业术语、具体条件、版本或对比，说明对方懂行：直接给精准答案，不解释基础概念。`;
 
-/** 用户选的回答风格：只改措辞与详略，输出格式不变；默认的简洁明了不额外要求 */
+/** 用户选的回答风格：只改措辞与详略，输出格式不变；默认的自动由模型按问题决定详略，不额外要求 */
 export function styleRule(prefs?: Prefs) {
   switch (prefs?.style) {
+    case "concise": return "\n回答风格：简洁明了。结论一到两句，要点每条一句话、只留最关键的；格式不变。";
     case "plain": return "\n回答风格：通俗易懂。少用术语，必须用到的术语顺手用一句大白话解释，可以打比方；格式不变。";
     case "deep": return "\n回答风格：详细深入。结论可以写到三句话，要点写满并带上具体数据、原理或条件；格式不变。";
     case "custom": return prefs.customStyle.trim() ? `\n用户希望的回答风格：${prefs.customStyle.trim().slice(0, 100)}（只影响措辞与详略，格式不变）` : "";
@@ -70,6 +71,14 @@ export function styleRule(prefs?: Prefs) {
 }
 
 const NO_SEARCH_RULE = `本次没有联网搜索，基于自身知识回答，不要标注 [序号]；不确定的地方要说明。`;
+
+/**
+ * 时效：只给日期不够，模型会把来源里几年前的数据当现状、把自己训练时的知识当最新。
+ * 要求以最新来源为准，变化快的领域讲清现在的状态与趋势，追问里留一个指向当前前沿的方向
+ */
+const timeRule = (search: boolean, followups = true) => `时效：今天是 ${today()}，你自己的知识可能落后于今天。
+- ${search ? "同一件事来源有新有旧时，以发布时间最新的为准；数据、例子和“目前”“最新”的说法优先用最近的来源，只有旧资料时写明“截至某年”。" : "涉及最新情况、数据或产品时，说明你的知识可能已经过时。"}
+- 发展快的领域（AI、科技产品、互联网、政策、市场行情等），回答要落在今天：讲清现在发展到哪一步、正在发生的主要变化，不要把几年前的情况当成现状。现状用大白话自然地带出来，不要为了显得新而堆排名、参数、百分比。${followups ? "\n- 追问里至少有一条指向这个话题当前的前沿或最新趋势；变化不快的领域不必。" : ""}`;
 
 /** 每个来源带给模型的配图描述：最多几条、每条最多几个字 */
 const CAPTIONS_PER_SOURCE = 4;
@@ -121,11 +130,15 @@ export function visionPrompt(question: string, images: string[]): ChatMessage[] 
 
 const imageBlock = (note?: string) => (note ? `用户附带的图片（已转成文字）：\n${note}` : "");
 
+/** 模型能直接读图时，用户附的图片原样放在文字前面；没有图片时就是一段文字 */
+const withImages = (text: string, images?: string[]): ChatMessage["content"] =>
+  images?.length ? [...images.map((url) => ({ type: "image_url" as const, image_url: { url } })), { type: "text" as const, text: `用户附带了上面的图片。\n${text}` }] : text;
+
 /**
  * 研究 Agent（research.ts）的提示词，同一段对话：第一步规划检索（search 动作，由 research.parseSearch 校验），之后每轮收到搜索结果，
  * 判断够不够：够了用 done 动作，不够就再给查询词。前面搜过什么、为什么还缺，后面都看得到。
  */
-export function researchPrompt(question: string, path: { q: string }[], imageNote?: string, searched: string[] = [], canRead = false, official = false, memory?: string): ChatMessage[] {
+export function researchPrompt(question: string, path: { q: string }[], imageNote?: string, searched: string[] = [], canRead = false, official = false, memory?: string, images?: string[]): ChatMessage[] {
   return [
     {
       role: "system",
@@ -137,6 +150,7 @@ export function researchPrompt(question: string, path: { q: string }[], imageNot
 - time 只在问题需要近期信息时填写：d7（近 7 天）、m1（近 1 个月）、m6（近半年）、y1（近 1 年）；不需要就省略。
 - field 只在明显属于某个领域时填写：gov（政策法规）、news（新闻时事）、acad（学术研究）、finance（财经数据）；一般问题省略。
 - site 是限定站点，只填一个具体网站的域名，不带 http 和路径，例如 www.mohrss.gov.cn、react.dev，不要只写 gov.cn、com.cn 这类后缀（实测搜不到）；政府网站整体用 field 的 gov 即可。全网结果里常混着搬运站和营销文章，所以编程技术、学术研究、政策法规、具体产品或公司这几类问题，至少拿出一个查询词限定最对口、最权威的站点：编程技术用官方文档站、github.com、stackoverflow.com，以及 juejin.cn、cnblogs.com 这类中文技术社区；学术用 arxiv.org 这类论文站；政策法规用对应的政府网站；产品、公司或开源项目用它的官网。国内和国外的站点都可以用，同一个方面可以分别限定一个国内站点和一个国外站点。限定站点之外至少保留一个不限站点的查询词；生活常识、新闻时事这类一般问题不填。${official ? "\n- 用户要求优先官方与权威来源：不管什么问题，每个方面都至少有一个查询词限定官方网站（官网、官方文档、政府网站），或用 field 限定 gov、news、acad；限定站点之外仍保留一个不限站点的查询词。" : ""}
+- 发展快的领域（AI、科技产品、互联网、政策、市场行情等），即使问的是概念或原理，也至少用一个查询词带 time（y1 或 m6）查这个话题的最新进展和现状，否则容易只搜到几年前的老文章。
 - quick 只在问题是单一事实或实时数据、一轮搜索就能答时填 true，比如天气、股价、航班、日期、某个数字或定义；需要分析、对比、多方说法的不填。
 - sources 是整理答案需要的来源总数，取 5 到 20 的整数，按问题自己判断，不要照抄示例：单一事实 5 到 6；一般问题 8 到 12；涉及多个方面、对比、争议或需要多方说法时 14 到 20。
 - 问题提到图片时，用图片内容里的具体对象（名称、型号、文字）来写查询词。${searched.length ? "\n- 这是补充检索：换不同的角度和说法，找已搜过的查询覆盖不到的信息，不要重复。" : ""}
@@ -151,12 +165,12 @@ export function researchPrompt(question: string, path: { q: string }[], imageNot
     },
     {
       role: "user",
-      content: [
+      content: withImages([
         path.length ? "上下文路径：" + path.map((p) => p.q).join(" → ") : "",
         imageBlock(imageNote),
         searched.length ? "已搜过：" + searched.join("；") : "",
         `问题：${question}`,
-      ].filter(Boolean).join("\n"),
+      ].filter(Boolean).join("\n"), images),
     },
   ];
 }
@@ -180,25 +194,26 @@ export function readObservation(results: { n: number; title: string; text?: stri
 /** 看看新进展：只讲 since 以来的变化，并和上一层的结论对照；没查到就如实说，不凭记忆补 */
 const updateRule = (since: string) => `这是对探索路径最后一层的跟进：只写 ${since} 至今的新变化，并和那一层的结论对照，说明哪些变了、有没有推翻之前的说法。搜索结果里发布早于 ${since} 的内容不算新进展。没有查到新变化时，结论直接写「${since} 以来没有查到新的进展」，不要用自身知识补充。`;
 
-export function answerPrompt(question: string, path: { q: string; summary: string }[], existing: string[], sources: Source[] | null, imageNote?: string, since?: string, prefs?: Prefs, memory?: MemoryBrief): ChatMessage[] {
+export function answerPrompt(question: string, path: { q: string; summary: string }[], existing: string[], sources: Source[] | null, imageNote?: string, since?: string, prefs?: Prefs, memory?: MemoryBrief, images?: string[]): ChatMessage[] {
   return [
     {
       role: "system",
-      content: `你是「知多少」的研究助手，帮用户一层层弄懂一个话题。今天是 ${today()}。
-${sources ? CITE_RULE : NO_SEARCH_RULE}${since ? "\n" + updateRule(since) : ""}${prefs?.style === "custom" ? "" : "\n" + READER_RULE}${styleRule(prefs)}${memory?.answer ? "\n" + memory.answer : ""}${memory?.followup ? "\n" + memory.followup : ""}
+      content: `你是「知多少」的研究助手，帮用户一层层弄懂一个话题。
+${sources ? CITE_RULE : NO_SEARCH_RULE}
+${timeRule(!!sources?.length)}${since ? "\n" + updateRule(since) : ""}${prefs?.style === "custom" ? "" : "\n" + READER_RULE}${styleRule(prefs)}${memory?.answer ? "\n" + memory.answer : ""}${memory?.followup ? "\n" + memory.followup : ""}
 ${THINK}
 
 ${format(!!sources?.length)}`,
     },
     {
       role: "user",
-      content: [
+      content: withImages([
         path.length ? `探索路径（从起点到上一层）：\n${path.map((p) => `- ${p.q}：${p.summary}`).join("\n")}` : "",
         existing.length ? `已有问题：\n${existing.join("\n")}` : "",
         sources ? `搜索结果：\n${formatSources(sources)}` : "",
         imageBlock(imageNote),
         `问题：${question}`,
-      ].filter(Boolean).join("\n\n"),
+      ].filter(Boolean).join("\n\n"), images),
     },
   ];
 }
@@ -215,9 +230,10 @@ export function synthesizePrompt(op: OpKind, instruction: string | undefined, no
   return [
     {
       role: "system",
-      content: `你是「知多少」的研究助手。用户在知识地图上选中了几个节点，需要你综合处理。今天是 ${today()}。
+      content: `你是「知多少」的研究助手。用户在知识地图上选中了几个节点，需要你综合处理。
 任务：${OP_TASK[op]}
-${search || sources.length ? CITE_RULE : NO_SEARCH_RULE}${styleRule(prefs)}
+${search || sources.length ? CITE_RULE : NO_SEARCH_RULE}
+${timeRule(sources.length > 0)}${styleRule(prefs)}
 ${THINK}
 
 在下面格式的最前面加一行：
@@ -267,10 +283,11 @@ export function detailPrompt(question: string, path: { q: string; summary: strin
   return [
     {
       role: "system",
-      content: `你是「知多少」的研究助手。用户已经在卡片上看到了精简回答，现在打开详情页，想把这个问题弄透。今天是 ${today()}。
+      content: `你是「知多少」的研究助手。用户已经在卡片上看到了精简回答，现在打开详情页，想把这个问题弄透。
 在精简回答的基础上详细展开：补充原因与机制、具体做法或步骤、数据与例子、不同观点和适用条件。不要复述卡片上的原话。
 长度按问题需要决定：具体问题写得紧凑，宽泛问题可以分多节展开；不要凑字数，每句都要有信息量。
-${node.sources.length ? CITE_RULE : NO_SEARCH_RULE}${styleRule(prefs)}
+${node.sources.length ? CITE_RULE : NO_SEARCH_RULE}
+${timeRule(node.sources.length > 0, false)}${styleRule(prefs)}
 ${THINK}
 
 只用以下 Markdown：

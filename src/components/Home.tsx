@@ -2,7 +2,7 @@ import { ArrowUp, CircleAlert, ImagePlus, Settings } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { IN_APP } from "../core/http.ts";
 import { defaultImageQuestion } from "../lib/image.ts";
-import { morphToCard } from "../lib/transition.ts";
+import { morphToCard, swapScreen } from "../lib/transition.ts";
 import { AttachmentStrip, hasFiles, useAttachments } from "./Attachments.tsx";
 import { actions, useGraph } from "../store/graph.ts";
 import { isConfigured, MOCK_MODE, settingsActions, useSettings } from "../settings/store.ts";
@@ -23,9 +23,14 @@ export function Home() {
   const search = useGraph((s) => s.search);
   const ready = useSettings((s) => isConfigured(s, search));
   const loaded = useHistory((s) => s.loaded);
-  // 没有历史时整体上下居中；进入首页时定一次，之后删光记录也不跳动
-  const [empty, setEmpty] = useState<boolean | null>(() => (loaded ? !useHistory.getState().items.length : null));
-  useEffect(() => { if (loaded && empty === null) setEmpty(!useHistory.getState().items.length); }, [loaded, empty]);
+  // 没有历史时整体上下居中；删光记录（或撤销后又有了）时用页面过渡平滑地挪过去，不用刷新
+  const hasItems = useHistory((s) => s.items.length > 0);
+  const [empty, setEmpty] = useState<boolean | null>(() => (loaded ? !hasItems : null));
+  useEffect(() => {
+    if (!loaded) return;
+    if (empty === null) setEmpty(!hasItems);
+    else if (empty === hasItems) swapScreen(() => setEmpty(!hasItems));
+  }, [loaded, hasItems, empty]);
 
   useEffect(() => { if (empty !== null) ref.current?.focus(); }, [empty !== null]);
 
@@ -59,7 +64,7 @@ export function Home() {
     <main className={`home${empty ? " is-empty" : ""}${empty === null ? " is-pending" : ""}`}>
       <header className="home-titlebar" {...drag}>
         <HistoryButton />
-        <button type="button" className="icon-btn" aria-label="设置" onClick={settingsActions.open}>
+        <button type="button" className="icon-btn" aria-label="设置" data-replay-id="settings" onClick={settingsActions.open}>
           <Settings size={16} strokeWidth={1.6} />
         </button>
         <WindowControls />
@@ -77,6 +82,7 @@ export function Home() {
           <label className="visually-hidden" htmlFor="home-input">问题</label>
           <textarea
             id="home-input"
+            data-replay-id="ask-input"
             ref={ref}
             rows={1}
             placeholder={att.items.length ? "关于图片想了解什么？" : "想了解什么？"}
@@ -106,7 +112,7 @@ export function Home() {
               <input ref={file} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden
                 onChange={(e) => { att.add([...(e.target.files ?? [])]); e.target.value = ""; ref.current?.focus(); }} />
             </div>
-            <button type="submit" className="send" aria-label="提问" disabled={!canSend}>
+            <button type="submit" className="send" aria-label="提问" data-replay-id="ask-submit" disabled={!canSend}>
               <ArrowUp size={16} strokeWidth={2} />
             </button>
           </div>
