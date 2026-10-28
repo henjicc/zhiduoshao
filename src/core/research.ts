@@ -238,8 +238,8 @@ export async function* research(
       yield {
         type: "dropped",
         sources: [...drop].map(([n, why]) => {
-          const { title, site, url, favicon } = sources[n - 1];
-          return { title, site, url, ...(favicon ? { favicon } : {}), ...(why ? { why } : {}) };
+          const { id, title, site, url, favicon } = sources[n - 1];
+          return { id, title, site, url, ...(favicon ? { favicon } : {}), ...(why ? { why } : {}) };
         }),
       };
       sources = sources.filter((_, i) => !drop.has(i + 1));

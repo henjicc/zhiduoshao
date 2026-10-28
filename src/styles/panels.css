@@ -552,7 +552,7 @@ button.source { width: 100%; text-align: left; }
   padding: 4px 8px; margin: 0 -8px; border-radius: var(--r-sm); font-size: var(--fs-md); line-height: 1.55; color: var(--ink-3);
   transition: background var(--t-fast);
 }
-.dropped-row:hover { background: var(--surface-hover); }
+a.dropped-row:hover { background: var(--surface-hover); }
 .dropped-title { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dropped-why { height: 18px; padding: 0 6px; border-radius: var(--r-xs); font-size: var(--fs-sm); line-height: 18px; color: var(--ink-2); background: var(--surface-sunken); white-space: nowrap; }
 

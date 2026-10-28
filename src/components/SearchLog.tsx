@@ -146,7 +146,7 @@ function DroppedStep({ n }: { n: GNode }) {
           {n.dropped.map((d, i) => {
             const row = (
               <>
-                <SourceIcon source={{ id: d.url, title: d.title, url: d.url, site: d.site, favicon: d.favicon, snippet: "" }} />
+                <SourceIcon source={{ id: d.id, title: d.title, url: d.url, site: d.site, favicon: d.favicon, snippet: "" }} />
                 <span className="dropped-title">{d.title}</span>
                 {d.why && <span className="dropped-why">{d.why}</span>}
               </>

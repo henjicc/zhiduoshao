@@ -479,7 +479,7 @@ test("复查可以剔除来源：drop 的序号不交给写答案、带理由报
   assert.deepEqual(kept.urls, ["https://a.cn", "https://c.cn"]);
   assert.match(kept.prompt, /\[2\] https:\/\/c\.cn/);
   assert.doesNotMatch(kept.prompt, /farm\.cn/);
-  assert.deepEqual(kept.dropped, [{ title: "https://farm.cn", site: "s", url: "https://farm.cn", why: "内容农场" }]);
+  assert.deepEqual(kept.dropped, [{ id: "https://farm.cn", title: "https://farm.cn", site: "s", url: "https://farm.cn", why: "内容农场" }]);
   const all = await run('{"action":"done","drop":[1,2,3]}');
   assert.deepEqual(all.urls, ["https://a.cn", "https://farm.cn", "https://c.cn"]);
   assert.deepEqual(all.dropped, []);

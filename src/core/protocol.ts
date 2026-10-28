@@ -81,8 +81,9 @@ export function articleKeys(s: Source): string[] {
 export const DROP_WHY = ["离题", "内容农场", "软文", "重复"] as const;
 export type DropWhy = (typeof DROP_WHY)[number];
 
-/** 复查判定不交给写答案的来源：只留检索过程里显示要用的几项，不存摘要与全文 */
+/** 复查判定不交给写答案的来源：只留检索过程里显示要用的几项与来源 id（搜索更多来源时据此不再搜回来），不存摘要与全文 */
 export interface DroppedSource {
+  id: string;
   title: string;
   site: string;
   url: string;
@@ -157,8 +158,9 @@ export interface AnswerRequest {
   imageNote?: string;
   /** 搜索更多来源：已经搜过的查询词与已有来源，本次换角度补充检索后重新整理答案 */
   more?: { queries: string[]; sources: Source[] };
-  /** 看看新进展：只检索这一天（yyyy-mm-dd）到今天发布的内容，跳过上一层已有的来源（exclude 为这些来源的 articleKeys） */
+  /** 看看新进展：只检索这一天（yyyy-mm-dd）到今天发布的内容 */
   since?: string;
+  /** 检索时跳过的来源键（articleKeys 或来源 id）：看看新进展跳过上一层已有的来源，搜索更多来源跳过上次复查剔除的 */
   exclude?: string[];
   prefs?: Prefs;
   memory?: MemoryBrief;
