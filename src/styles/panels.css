@@ -498,3 +498,6 @@ button.source { width: 100%; text-align: left; }
 .search-param .lucide { color: var(--ink-3); }
 .search-param.is-site { color: var(--accent); background: var(--accent-soft); }
 .search-param.is-site .lucide { color: var(--accent); }
+/* 读写对比：整条是读的量，强调色的一小段是写的量（至少 2px） */
+.written-bar { height: 4px; margin-top: 8px; border-radius: 999px; background: var(--line-strong); overflow: hidden; }
+.written-bar i { display: block; height: 100%; border-radius: inherit; background: var(--viz-accent); }

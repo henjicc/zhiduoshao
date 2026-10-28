@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { relativeTime, sourceMeta } from "./format.ts";
+import { approxCount, readWritten, relativeTime, sourceMeta } from "./format.ts";
 import type { Source } from "../core/protocol.ts";
 
 const now = new Date(2026, 9, 24, 9, 30).getTime();
@@ -20,4 +20,13 @@ test("卡片时效取最新一条来源的发布时间", () => {
   const s = (date: string) => ({ id: date, title: "", url: "", site: "", snippet: "", date }) as Source;
   const text = sourceMeta([s("2026/10/16 00:00:00"), s(new Date(Date.now() - 5 * 60_000).toISOString())]);
   assert.match(text, /^2 个来源，最新信息发布于(今天|昨天) \d\d:\d\d$/);
+});
+
+test("读与写的字数：读过全文的按全文，结论去掉角标，不算空白；大数按万", () => {
+  const s = (snippet: string, text?: string) => ({ id: snippet, title: "", url: "", site: "", snippet, text }) as Source;
+  assert.deepEqual(readWritten([s("一二三"), s("短", "全文 五个字")], "结论两句。[1][2]", [{ text: "要点" }]), { read: 3 + 5, written: 5 + 2 });
+  assert.equal(approxCount(21_340), "2.1 万");
+  assert.equal(approxCount(20_020), "2 万");
+  assert.equal(approxCount(8_640), "8600");
+  assert.equal(approxCount(286), "286");
 });

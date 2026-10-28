@@ -50,3 +50,23 @@ const CARD_TYPES: Record<string, string> = { weather: "天气" };
 export const cardLabel = (s: Source) => (s.cardType && CARD_TYPES[s.cardType] ? `${CARD_TYPES[s.cardType]}卡片` : "权威卡片");
 
 export const short = (s: string, len = 18) => (s.length > len ? s.slice(0, len) + "…" : s);
+
+/** 不算空白的字数 */
+const chars = (s: string) => s.replace(/\s/g, "").length;
+
+/**
+ * 读与写的字数：读 = 交给写答案模型的材料（读过全文的按全文，否则按摘要），写 = 卡片上的结论与要点（不算角标）。
+ * 只用节点已有的字段，早期存档也能算
+ */
+export function readWritten(sources: Source[], summary: string, points: { text: string }[]) {
+  return {
+    read: sources.reduce((sum, s) => sum + chars(s.text ?? s.snippet), 0),
+    written: chars(summary.replace(/\[\d+\]/g, "")) + points.reduce((sum, p) => sum + chars(p.text), 0),
+  };
+}
+
+/** 大约多少字：一万以上按万、保留一位小数，一千以上取整到百 */
+export function approxCount(n: number) {
+  if (n >= 10_000) return `${(n / 10_000).toFixed(1).replace(/\.0$/, "")} 万`;
+  return String(n >= 1000 ? Math.round(n / 100) * 100 : n);
+}

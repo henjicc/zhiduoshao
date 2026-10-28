@@ -2,10 +2,11 @@ import { CalendarClock, ChartCandlestick, Globe, GraduationCap, Landmark, Newspa
 import type { Industry, ResearchStep, SearchLog } from "../core/protocol.ts";
 import type { GNode } from "../store/types.ts";
 import { today } from "../core/prompts.ts";
+import { approxCount, readWritten } from "../lib/format.ts";
 import { MetaParts } from "./common.tsx";
 
 // 侧边栏「检索过程」：按研究助手实际做事的顺序画成一条时间线——拆成几个查询词、每轮同时查了哪些（参数跟在查询词后面）、
-// 为什么还要补查、读了哪几篇全文、最后从去重后的结果里选出几条来源。参数就是 API 请求里的字段，让「怎么查的」看得见。
+// 为什么还要补查、读了哪几篇全文、从去重后的结果里选出几条来源，最后是读了多少字、写成多少字。参数就是 API 请求里的字段，让「怎么查的」看得见。
 
 const INDUSTRY: Record<Industry, { label: string; icon: LucideIcon }> = {
   gov: { label: "政府", icon: Landmark },
@@ -70,6 +71,8 @@ export function SearchLogSection({ n }: { n: GNode }) {
   const unique = n.steps.length ? searches.reduce((sum, s) => sum + s.unique, 0) : 0;
   const done = n.status === "ready" || n.status === "streaming";
   const note = first ? planNote(first.queries) : "";
+  // 综合节点的来源是合并来的，读写对比没有意义
+  const written = n.status === "ready" && !n.links.length && n.sources.length > 0;
   let round = 0;
   return (
     <section className="drawer-section">
@@ -117,11 +120,24 @@ export function SearchLogSection({ n }: { n: GNode }) {
           ];
         })}
         {done && n.sources.length > 0 && (
-          <li className="research-step is-done">
+          <li className={`research-step${written ? "" : " is-done"}`}>
             <div className="research-step-head"><b>选出 {n.sources.length} 条来源</b>{unique > 0 && <span className="research-num">去重后 {unique} 条</span>}</div>
           </li>
         )}
+        {written && <WrittenStep n={n} />}
       </ol>
     </section>
+  );
+}
+
+/** 最后一步：读了多少、写成多少。细条整条是读的量，强调色的一小段是写的量，不看字也看得出差距 */
+function WrittenStep({ n }: { n: GNode }) {
+  const { read, written } = readWritten(n.sources, n.summary, n.points);
+  return (
+    <li className="research-step is-done" data-replay-id={`written-${n.id}`}>
+      <div className="research-step-head"><b>写成答案</b></div>
+      <div className="research-step-sub">读了约 {approxCount(read)} 字，写成 {written} 字</div>
+      <div className="written-bar" aria-hidden="true"><i style={{ width: `max(2px, ${(written / Math.max(read, written, 1)) * 100}%)` }} /></div>
+    </li>
   );
 }
