@@ -26,6 +26,8 @@ export interface GNode {
   instruction: string | null;
   children: string[];
   collapsed: boolean;
+  /** 回答写了「追问：无」：这条线问透了，没有子节点时连线末端画收尾记号；重新回答时清空 */
+  settled: boolean;
   status: NodeStatus;
   stage: Stage | null;
   stageDetail: StageDetail | null;

@@ -97,8 +97,10 @@ function answerText(system: string, user: string) {
   // 起点是念头时像真实模型一样先拆题
   if (system.includes(FRAME_MARK) && isThought(q)) return framedAnswer(q, cite);
   const canned = MEMORY_ANSWERS[q];
-  if (canned) return cite ? canned : stripCites(canned);
-  return genericAnswer(q, cite);
+  const text = canned ? (cite ? canned : stripCites(canned)) : genericAnswer(q, cite);
+  // 顺着问到第三层时示例模型认为问透了，便于开发时看到收尾记号
+  const depth = /探索路径（从起点到上一层）：\n((?:- .*\n?)+)/.exec(user)?.[1].trim().split("\n").length ?? 0;
+  return depth >= 2 ? text.replace(/追问：[\s\S]*$/, "追问：无") : text;
 }
 
 /** 示例的记忆整理：保留现有记忆，把近期第一个提问的话题补成一条关注领域 */

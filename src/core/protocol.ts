@@ -207,6 +207,8 @@ export type StreamEvent =
   | { type: "point"; point: Point }
   | { type: "visual"; visual: Visual }
   | { type: "followup"; followup: Followup }
+  /** 模型写了「追问：无」：结合探索路径，起点的疑问已经解开，这条线问透了 */
+  | { type: "settled" }
   /** 总结文档的增量文本 */
   | { type: "text"; delta: string }
   /** 模型思考过程的增量文本，只用于等待时的动态反馈 */

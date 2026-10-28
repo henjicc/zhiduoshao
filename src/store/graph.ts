@@ -81,10 +81,10 @@ export const actions = {
     resetSeq(maxSeq(nodes));
     const root = rootOf(nodes);
     const spineId = latestAnswered(nodes);
-    const { pos, visible, slot } = layout(nodes, {}, slotParent(nodes, root?.id), spineId);
+    const { pos, visible, slot, ends } = layout(nodes, {}, slotParent(nodes, root?.id), spineId);
     set({
       ...initial(), screen: "workspace", map: { id: r.id, createdAt: r.createdAt, updatedAt: r.updatedAt },
-      nodes, pos, visible, slot, activeId: root?.id ?? null, spineId, view: { ...(live?.view ?? r.view), glide: false },
+      nodes, pos, visible, slot, ends, activeId: root?.id ?? null, spineId, view: { ...(live?.view ?? r.view), glide: false },
       // 激活过的节点随存档保存，「保持展开」时重新打开仍是展开的
       opened: { ...(live?.opened ?? Object.fromEntries((r.opened ?? []).filter((id) => nodes[id]).map((id) => [id, true as const]))), ...(root ? { [root.id]: true as const } : {}) },
     });

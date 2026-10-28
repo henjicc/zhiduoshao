@@ -101,6 +101,8 @@ function applyEvent(map: string, id: string, ev: StreamEvent) {
       return patch((n) => ({ status: "streaming", points: [...n.points, ev.point] }));
     case "visual":
       return patch(() => ({ status: "streaming", visual: ev.visual }));
+    case "settled":
+      return patch(() => ({ settled: true }));
     case "followup":
       recordAngle(ev.followup.dir, map, false);
       return addAt(map, { kind: "question", dir: ev.followup.dir, q: ev.followup.q, nextWhy: ev.followup.why ?? null, parent: id });
@@ -127,7 +129,7 @@ function resetAnswer(id: string, keepQueries: boolean) {
   const n = nodes[id];
   for (const c of n.children) if (nodes[c].kind === "question") delete nodes[c];
   nodes[id] = {
-    ...n, kind: "answer", status: "loading", stage: null, stageDetail: null, summary: "", framed: false, thinking: "", points: [], visual: null, memory: null, sources: [], error: null, errorCode: null, errorHint: null,
+    ...n, kind: "answer", status: "loading", stage: null, stageDetail: null, summary: "", framed: false, settled: false, thinking: "", points: [], visual: null, memory: null, sources: [], error: null, errorCode: null, errorHint: null,
     detail: "", detailStatus: "idle",
     queries: keepQueries ? n.queries : [],
     searchResults: keepQueries ? n.searchResults : 0,

@@ -73,6 +73,7 @@ function Edges() {
   const visible = useGraph((s) => s.visible);
   const activeId = useGraph((s) => s.activeId);
   const slot = useGraph((s) => s.slot);
+  const ends = useGraph((s) => s.ends);
   const selected = useGraph((s) => s.selected);
   const picked = selected.filter((id) => pos[id] && visible.includes(id));
   const focus = focusSets({ nodes, activeId });
@@ -97,6 +98,9 @@ function Edges() {
         }
         return out;
       })}
+      {Object.entries(ends).map(([id, box]) => pos[id] && (
+        <path key={`end-${id}`} pathLength={1} className={`edge${focus?.path.has(id) ? " on-path" : ""}${focus && !focus.lit.has(id) ? " dim" : ""}`} style={{ d: `path("${edgePath(pos[id], box)}")` }} />
+      ))}
       {slot && pos[slot.parent] && (
         <path key="slot" className="edge is-slot" style={{ d: `path("${edgePath(pos[slot.parent], slot.box)}")` }} />
       )}
@@ -318,12 +322,27 @@ export function Canvas() {
       >
         <Edges />
         {visible.map((id) => <NodeView key={id} id={id} />)}
+        <EndMarks />
         <AskSlot />
       </div>
       <Marquee rect={marquee} />
       <ContextMenu at={menu} onClose={closeMenu} />
     </div>
   );
+}
+
+/** 问透的收尾记号：连线末端一个实心点，旁边一行小字。不是节点，在上面按下和在空白处一样平移画布；之后长出子节点就消失 */
+function EndMarks() {
+  const ends = useGraph((s) => s.ends);
+  const nodes = useGraph((s) => s.nodes);
+  const activeId = useGraph((s) => s.activeId);
+  const focus = focusSets({ nodes, activeId });
+  return Object.entries(ends).map(([id, b]) => (
+    <div key={id} className={`end-mark${focus && !focus.lit.has(id) ? " dim" : ""}`} data-replay-id={`settled-${id}`}
+      style={{ transform: `translate(${b.x}px, ${b.y}px)`, height: b.h }}>
+      <i className="end-dot" aria-hidden="true" />这条线问透了
+    </div>
+  ));
 }
 
 type Rect = { x: number; y: number; w: number; h: number };

@@ -19,6 +19,8 @@ export interface GraphState {
   visible: string[];
   /** 当前节点延伸列表底部的输入框位置 */
   slot: Slot | null;
+  /** 问透的节点连线末端的收尾记号位置，键为节点 id */
+  ends: Record<string, Box>;
   /** 输入框正在等模型判断意图 */
   slotBusy: boolean;
   activeId: string | null;
@@ -44,6 +46,7 @@ export const initial = (): Omit<GraphState, "search" | "screen" | "map"> => ({
   pos: {},
   visible: [],
   slot: null,
+  ends: {},
   slotBusy: false,
   activeId: null,
   spineId: null,
@@ -73,8 +76,8 @@ export const slotParent = (nodes: Record<string, GNode>, activeId: string | null
 export function commitNodes(nodes: Record<string, GNode>, extra: Partial<GraphState> = {}) {
   const activeId = "activeId" in extra ? extra.activeId : get().activeId;
   const spineId = "spineId" in extra ? extra.spineId : get().spineId;
-  const { pos, visible, slot } = layout(nodes, extra.sizes ?? get().sizes, slotParent(nodes, activeId), spineId ?? null);
-  set({ nodes, pos, visible, slot, ...extra });
+  const { pos, visible, slot, ends } = layout(nodes, extra.sizes ?? get().sizes, slotParent(nodes, activeId), spineId ?? null);
+  set({ nodes, pos, visible, slot, ends, ...extra });
 }
 
 /**
@@ -110,7 +113,7 @@ export function patch(id: string, fn: (n: GNode) => Partial<GNode>) {
 export function newNode(p: Partial<GNode> & Pick<GNode, "kind" | "q">): GNode {
   return {
     id: "n" + ++seq,
-    dir: null, nextWhy: null, parent: null, links: [], op: null, instruction: null, children: [], collapsed: false,
+    dir: null, nextWhy: null, parent: null, links: [], op: null, instruction: null, children: [], collapsed: false, settled: false,
     status: "idle", stage: null, stageDetail: null, images: [], imageNote: "", summary: "", framed: false, thinking: "", points: [], visual: null, memory: null, sources: [], queries: [], searchResults: 0, searches: [], steps: [], searchMs: 0, searchMode: null, compareOf: null, answeredAt: 0, since: null, detail: "", detailStatus: "idle", error: null, errorCode: null, errorHint: null,
     dx: 0, dy: 0, ax: 0, ay: 0,
     ...p,

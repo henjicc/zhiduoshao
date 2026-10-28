@@ -10,6 +10,10 @@ export type Sizes = Record<string, { w: number; h: number }>;
 export interface Slot { parent: string; box: Box }
 export const slotKey = (parent: string) => `ask:${parent}`;
 const SLOT = { w: 380, h: 44 };
+/** 问透的收尾记号（连线末端的实心点和一行小字）：也不是节点，排在子列最前面，后面照常是输入框。
+ * 高度与延伸问题相同，连线落在同一高度；宽度只用来避让左右重叠，比文字略宽即可 */
+export const endKey = (id: string) => `end:${id}`;
+export const END = { w: 132, h: 44 };
 
 /**
  * 从左到右的树形布局：每棵树的根以顶边固定在锚点，子节点与父节点顶边对齐、向下排开；拖动产生的偏移会带着整个子树移动。
@@ -17,14 +21,17 @@ const SLOT = { w: 380, h: 44 };
  * 不再把整棵子树当成一个矩形——否则某个节点右侧的子节点列很长时，它下方会空出一大块（用户实测反馈）。
  * 顶部固定：节点流式输出变高时只向下长，上方的内容和来路不会被推动。
  * slotFor：在这个节点的子节点最下方留出输入框的位置。
+ * 写了「追问：无」、没有子节点的节点（折叠的不算）在子列最前面留出收尾记号的位置。
  * spineId：主线（从根到这个节点的路径）拉成一条水平线：主线上的子节点与父节点顶边对齐，
  * 排在它前面的兄弟向上排开、后面的照旧向下，否则越往深处追问越往下滑（用户实测反馈）。
  */
-export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: string | null = null, spineId: string | null = null) {
+export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: string | null = null, spineId: string | null = null): { pos: Record<string, Box>; visible: string[]; slot: Slot | null; ends: Record<string, Box> } {
   const pos: Record<string, Box> = {};
   const visible: string[] = [];
   let slot: Slot | null = null;
+  const ends: Record<string, Box> = {};
   const slotSize = (n: GNode) => (n.id === slotFor && !n.collapsed ? sizes[slotKey(n.id)] ?? SLOT : null);
+  const endSize = (n: GNode) => (n.settled && !n.collapsed && !n.children.length ? END : null);
   const size = (n: GNode) => sizes[n.id] ?? DEFAULT[n.kind];
   const kids = (n: GNode) => (n.collapsed ? [] : n.children.map((id) => nodes[id]).filter(Boolean));
   /** 子节点（与输入框）相对父节点子列顶边的纵向位置 */
@@ -82,6 +89,8 @@ export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: stri
     if (cs.length) below(cs[k].id, sub[k], cs[k]);
     for (let i = k - 1; i >= 0; i--) above(cs[i].id, sub[i], cs[i]);
     for (let i = k + 1; i < cs.length; i++) below(cs[i].id, sub[i], cs[i]);
+    const es = endSize(n);
+    if (es) below(endKey(n.id), [{ x: 0, y: 0, ...es }]);
     const ss = slotSize(n);
     if (ss) below(slotKey(n.id), [{ x: 0, y: 0, w: ss.w, h: ss.h }]);
     return [...own, ...placed.map((b) => ({ ...b, x: b.x + col }))];
@@ -94,6 +103,8 @@ export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: stri
     pos[n.id] = { x: x + ox, y: top + oy, w, h };
     visible.push(n.id);
     for (const c of kids(n)) place(c, x + w + COL_GAP, top + offset.get(c.id)!, ox, oy);
+    const es = endSize(n);
+    if (es) ends[n.id] = { x: x + w + COL_GAP + ox, y: top + offset.get(endKey(n.id))! + oy, ...es };
     const ss = slotSize(n);
     if (ss) slot = { parent: n.id, box: { x: x + w + COL_GAP + ox, y: top + offset.get(slotKey(n.id))! + oy, w: ss.w, h: ss.h } };
   };
@@ -103,7 +114,7 @@ export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: stri
     measure(n);
     place(n, n.ax, n.ay, 0, 0);
   }
-  return { pos, visible, slot };
+  return { pos, visible, slot, ends };
 }
 
 export function bounds(boxes: Box[]) {

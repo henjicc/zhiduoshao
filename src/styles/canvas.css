@@ -281,6 +281,17 @@
 .pill-go { margin-top: 2px; color: var(--ink-4); opacity: 0; transition: opacity var(--t-fast); }
 .pill:hover .pill-go, .pill:focus-visible .pill-go { opacity: 1; color: var(--accent); }
 
+/* 问透的收尾记号：连线末端的实心点压在线的端点上，旁边一行小字（Canvas.tsx 的 EndMarks） */
+.end-mark {
+  position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 8px;
+  white-space: nowrap; font-size: var(--fs-md); color: var(--ink-3); pointer-events: none;
+  transition: transform var(--t-mid) var(--ease), opacity var(--t-fast);
+  animation: fade var(--t-mid) var(--ease) backwards;
+}
+.end-dot { flex: none; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--edge-active); }
+.end-mark.dim { opacity: 0.5; }
+.stage.is-dragging .end-mark { transition: opacity var(--t-fast); }
+
 /* 延伸列表底部的输入框 */
 .edge.is-slot { stroke-dasharray: 3 4; opacity: 0.6; animation: none; }
 .slot {

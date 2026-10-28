@@ -141,3 +141,10 @@ test("拆题：按结论流式输出，并且只发一次 framed", () => {
   }
   assert.equal(run([OUTPUT]).filter((e) => e.type === "framed").length, 0);
 });
+
+test("追问：无 发一次 settled；有追问时不发", () => {
+  for (const out of ["结论：答完了。\n追问：无\n", "结论：答完了。\n追问：\n无\n"]) {
+    for (const chunks of [[out], [...out]]) assert.equal(run(chunks).filter((e) => e.type === "settled").length, 1);
+  }
+  assert.equal(run([OUTPUT]).filter((e) => e.type === "settled").length, 0);
+});

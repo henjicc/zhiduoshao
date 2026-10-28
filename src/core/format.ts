@@ -9,9 +9,10 @@ import type { StreamEvent, Visual } from "./protocol.ts";
 //   追问：
 //   [方向] 问题｜先问：理由（只有第一条可以带）
 //   [方向] 问题
+//   （没有值得再追问的方向时写「追问：无」，发 settled：这条线问透了）
 
 type Mode = "start" | "title" | "summary" | "visual" | "skip" | "points" | "followups";
-type Out = Extract<StreamEvent, { type: "title" | "summary" | "framed" | "visual" | "point" | "followup" }>;
+type Out = Extract<StreamEvent, { type: "title" | "summary" | "framed" | "visual" | "point" | "followup" | "settled" }>;
 
 const CITE = /\[(\d{1,2})\]/g;
 const LABEL = /^(标题|结论|拆题|数据|要点|追问)[：:]\s*/;
@@ -216,8 +217,14 @@ export class AnswerParser {
       const next = NEXT.exec(q);
       if (next) q = q.slice(0, next.index).trim();
       const why = next && !this.followups ? next[1].trim() : "";
-      // 「追问：无」表示模型认为不需要再扩散
-      if (!q || NONE.test(q)) return;
+      // 「追问：无」表示模型认为这条线问透了，不再扩散
+      if (!q || NONE.test(q)) {
+        if (q && !this.followups && !this.settled) {
+          this.settled = true;
+          out.push({ type: "settled" });
+        }
+        return;
+      }
       this.followups++;
       out.push({ type: "followup", followup: why ? { dir, q, why } : { dir, q } });
     }
@@ -258,6 +265,7 @@ export class AnswerParser {
 
   private summaryStarted = false;
   private framed = false;
+  private settled = false;
 
   private enterSummary(out: Out[], label: string) {
     this.mode = "summary";

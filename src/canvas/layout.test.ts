@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { GNode } from "../store/types.ts";
-import { layout, ROW_GAP, slotKey } from "./layout.ts";
+import { END, layout, ROW_GAP, slotKey } from "./layout.ts";
 
 const node = (p: Partial<GNode> & Pick<GNode, "id">): GNode => ({
-  kind: "answer", dir: null, nextWhy: null, q: p.id, parent: null, links: [], op: null, instruction: null, children: [], collapsed: false,
+  kind: "answer", dir: null, nextWhy: null, q: p.id, parent: null, links: [], op: null, instruction: null, children: [], collapsed: false, settled: false,
   status: "ready", stage: null, stageDetail: null, images: [], imageNote: "", summary: "", framed: false, thinking: "", points: [], visual: null, memory: null, sources: [], queries: [], searchResults: 0, searches: [], steps: [], searchMs: 0, searchMode: null, compareOf: null, answeredAt: 0, since: null,
   detail: "", detailStatus: "idle", error: null, errorCode: null, errorHint: null, dx: 0, dy: 0, ax: 0, ay: 0, ...p,
 });
@@ -118,4 +118,15 @@ test("主线拉直：后面的兄弟避开上方兄弟垂下来的子列", () =>
   assert.equal(pos.u.y + a.h + ROW_GAP, pos.m.y);
   assert.ok(pos.u4.y > 0, "u 的子列垂到主线以下");
   assert.equal(pos.d1.y, pos.u4.y + q.h + ROW_GAP);
+});
+
+test("问透的收尾记号排在子列最前面，输入框接在它下面；长出子节点或折叠后不再留位置", () => {
+  const nodes = { r: node({ id: "r", settled: true }) };
+  const sizes = { r: { w: 380, h: 120 }, [slotKey("r")]: { w: 380, h: 44 } };
+  const l = layout(nodes, sizes, "r");
+  assert.deepEqual(l.ends.r, { x: 380 + 72, y: 0, ...END });
+  assert.equal(l.slot?.box.y, END.h + ROW_GAP);
+  const grown = { r: { ...nodes.r, children: ["a"] }, a: node({ id: "a", kind: "question", parent: "r" }) };
+  assert.deepEqual(layout(grown, sizes, "r").ends, {});
+  assert.deepEqual(layout({ r: { ...nodes.r, collapsed: true } }, sizes).ends, {});
 });

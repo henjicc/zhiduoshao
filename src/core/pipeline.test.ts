@@ -371,7 +371,7 @@ test("回答提示词带时效规则：以最新来源为准，没联网时提�
   assert.match(withSearch, /今天是 \d{4}-\d{2}-\d{2}/);
   assert.match(withSearch, /以发布时间最新的为准/);
   assert.match(offline, /知识可能已经过时/);
-  assert.match(withSearch, /追问里至少有一条指向这个话题当前的前沿/);
+  assert.match(withSearch, /有追问时，至少一条指向这个话题当前的前沿/);
   // 不联网时没听说过的东西不能说成不存在（实测把已发布的产品说成「没有这款」）
   assert.match(offline, /不要断言它不存在/);
 });
