@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { NodeContext, Source, StreamEvent } from "./protocol.ts";
+import { keepFullText, type NodeContext, type Source, type StreamEvent } from "./protocol.ts";
 import { textOf, type ChatMessage, type ContentPart, type LLMProvider } from "./providers/types.ts";
 import { parsePages, requestBody } from "./providers/yuanbao.ts";
 import { answer, mergeSources } from "./pipeline.ts";
@@ -393,6 +393,12 @@ test("卡片长度只由风格决定一处：简洁、详细与默认各一套�
   assert.doesNotMatch(synth("summary"), /入门读者/);
   assert.match(synth("expand"), /写 2 到 4 条，每条一句话/);
   assert.doesNotMatch(synth("expand"), /4 到 6 条|2 到 3 条|详细深入/);
+});
+
+test("检索中替换来源列表时保留阅读视图已读到的全文，新列表自己带的全文优先", () => {
+  const prev = [{ ...src("a"), text: "阅读视图读到的全文" }, { ...src("b"), text: "旧全文" }, src("gone")];
+  const next = [src("a"), { ...src("b"), text: "研究 Agent 读到的全文" }, src("c")];
+  assert.deepEqual(keepFullText(prev, next).map((s) => [s.id, s.text]), [["a", "阅读视图读到的全文"], ["b", "研究 Agent 读到的全文"], ["c", undefined]]);
 });
 
 test("合并多个节点的来源时，同一篇文章换了网址也只占一个序号", () => {

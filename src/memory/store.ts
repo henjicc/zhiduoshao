@@ -23,12 +23,17 @@ export interface MemoryState {
   sites: Record<string, { count: number; last: number }>;
   angles: Record<string, { shown: number; clicked: number; last: number }>;
   pending: Signal[];
+  /** 开着记忆时提问过的地图（最近的在后）：整理时只拿这些地图的标题判断关注是否反复出现，关着记忆时探索的不算 */
+  maps: string[];
 }
 
 /** 记忆文本的长度上限：每次提问都会带上它 */
 export const MEMORY_MAX = 800;
 
-const initial = (): MemoryState => ({ enabled: true, offMaps: [], text: "", updatedAt: 0, sites: {}, angles: {}, pending: [] });
+/** 记住最近多少张提问过的地图 */
+const MAPS_KEPT = 30;
+
+const initial = (): MemoryState => ({ enabled: true, offMaps: [], text: "", updatedAt: 0, sites: {}, angles: {}, pending: [], maps: [] });
 
 export const useMemory = create<MemoryState>()(
   persist(initial, {
@@ -48,7 +53,10 @@ export const memoryOn = (mapId: string | null | undefined) => get().enabled && !
 /** 记录一次提问：同一问题在等待整理的列表里只留一次（重试、补充检索不重复记） */
 export function recordAsk(q: string, mapId: string) {
   if (!memoryOn(mapId) || get().pending.some((s) => s.kind === "ask" && s.q === q && s.mapId === mapId)) return;
-  set((s) => ({ pending: [...s.pending, { kind: "ask" as const, q, mapId, at: Date.now() }].slice(-30) }));
+  set((s) => ({
+    pending: [...s.pending, { kind: "ask" as const, q, mapId, at: Date.now() }].slice(-30),
+    maps: [...s.maps.filter((m) => m !== mapId), mapId].slice(-MAPS_KEPT),
+  }));
 }
 
 export function recordDetail(q: string, mapId: string | null | undefined) {

@@ -61,6 +61,12 @@ export function fullTextIssue(s: Source, text: string): string | null {
   return text.length > s.snippet.length ? null : `读到的正文只有 ${text.length} 字，不比搜索摘要长`;
 }
 
+/** 用新来源列表替换旧列表时，按 id 带上旧列表里已读到、新列表里没有的全文：阅读视图在检索进行中写的全文，研究 Agent 那份列表里没有 */
+export function keepFullText(prev: Source[], next: Source[]): Source[] {
+  const read = new Map(prev.filter((s) => s.text).map((s) => [s.id, s.text!]));
+  return next.map((s) => (s.text || !read.has(s.id) ? s : { ...s, text: read.get(s.id) }));
+}
+
 /**
  * 认出同一篇文章的键：网址，加上摘要开头。同一篇换了网址（http 与 https、转载、arXiv 的 abs 与 html）时摘要相同，
  * 转载算成多个来源时写答案的模型会当成多方印证。只比开头几十字会把引用同一段原文的不同文章误认成一篇，所以取前 120 字；
@@ -117,11 +123,10 @@ export interface Prefs {
   time: "auto" | "d7" | "m1";
 }
 
-/** 个人记忆给这次回答的提示（memory/brief.ts 生成）：检索规划、写答案、生成延伸问题各一段 */
+/** 个人记忆给这次回答的提示（memory/brief.ts 生成）：检索规划、写答案各一段 */
 export interface MemoryBrief {
   research?: string;
   answer?: string;
-  followup?: string;
 }
 
 export interface AnswerRequest {

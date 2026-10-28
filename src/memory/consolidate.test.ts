@@ -8,12 +8,21 @@ import { MEMORY_MAX, topAngles, topSites, type MemoryState } from "./store.ts";
 
 test("整理提示词带上现有记忆与使用信号；模型输出去掉代码块围栏，空输出不能清空记忆", () => {
   const user = textOf(consolidatePrompt("- 喜欢详细的回答", {
-    pending: [{ kind: "ask", q: "2.5G 交换机怎么选", mapId: "m", at: 0 }, { kind: "detail", q: "主控芯片", mapId: "m", at: 0 }],
+    pending: [
+      { kind: "ask", q: "2.5G 交换机怎么选", mapId: "m", at: 0 },
+      { kind: "ask", q: "台风为什么秋天还有", mapId: "n", at: 0 },
+      { kind: "detail", q: "主控芯片", mapId: "m", at: 0 },
+    ],
     sites: [{ site: "php.net", count: 3 }],
     angles: [{ dir: "对比", rate: 0.5 }],
+    maps: [{ id: "m", title: "交换机选购" }, { id: "x", title: "PHP 漏洞" }],
   })[1].content);
   assert.match(user, /现有记忆：\n- 喜欢详细的回答/);
-  assert.match(user, /2\. （打开详解深入阅读）主控芯片/);
+  // 同一张地图里的追问放在一组、组名是地图标题；还没保存的新地图没有标题
+  assert.match(user, /地图「交换机选购」：\n- 2\.5G 交换机怎么选\n- （打开详解深入阅读）主控芯片\n一张新地图：\n- 台风为什么秋天还有/);
+  // 「其他地图」不重复列出上面已经分组的地图，免得同一张被算成两张
+  assert.match(user, /其他最近探索过的地图（每行一张）：\nPHP 漏洞$/m);
+  assert.doesNotMatch(user, /其他最近探索过的地图[\s\S]*交换机选购/);
   assert.match(user, /php\.net（3 次）/);
   assert.match(user, /对比（点击率 50%）/);
   assert.equal(parseMemory("```\n- 关注家用网络设备\n\n- 常看 php.net\n```"), "- 关注家用网络设备\n- 常看 php.net");

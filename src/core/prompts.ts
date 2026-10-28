@@ -25,7 +25,7 @@ const VISUAL_RULE = `数据：可选的可视化卡片。搜索结果里有合�
 - 三样以上的东西按几项指标对照、值大多是文字（型号参数清单、方案对比）：{"kind":"table","title":"标题","columns":["型号","端口","速率"],"rows":[{"cells":["A","8 口","2.5G"],"cites":[1]}]}，2 到 4 列、2 到 6 行，第一列是被比较的对象，单元格不超过 12 字。
 - 有明确经过的事件（新闻事件、安全漏洞、发布会、政策变化）：{"kind":"timeline","title":"标题","items":[{"time":"10月20日","text":"发生了什么","cites":[2]}]}，2 到 6 条，每条不超过 30 字。
 - 一到四个关键数字（评分、价格、规模、日期），或两样东西之间各项的提升幅度（问“提升多少”“差多少”时用它，如 CPU +20%）：{"kind":"stats","title":"标题","items":[{"label":"指标","value":"9.2","cites":[3]}]}，数值带单位，不超过 10 字。
-每一项只标一到两个最直接的来源序号。标题不超过 16 字。这一行放在结论下面，必须以「数据：」开头，后面接整段写成一行的 JSON；要点不要重复这里已经列出的数据。`;
+每一项只标一到两个最直接的来源序号。柱状、环形和表格里并排比较的各项要是同一时期、同一口径的数据，不要把多年前的旧型号当成现在的对手和新型号并排比；随时间的变化用折线。标题不超过 16 字。这一行放在结论下面，必须以「数据：」开头，后面接整段写成一行的 JSON；要点不要重复这里已经列出的数据。`;
 
 /**
  * 卡片结论与要点的长度只在这里定，风格（styleRule）与读者判断（READER_RULE）不写长度：几处都写时说法容易矛盾，模型会按最后读到的那条写。
@@ -227,7 +227,7 @@ export function answerPrompt(question: string, path: { q: string; summary: strin
       role: "system",
       content: `你是「知多少」的研究助手，帮用户一层层弄懂一个话题。
 ${sources ? CITE_RULE : NO_SEARCH_RULE}
-${timeRule(!!sources?.length)}${since ? "\n" + updateRule(since) : ""}${reader ? "\n" + READER_RULE : ""}${styleRule(prefs)}${memory?.answer ? "\n" + memory.answer : ""}${memory?.followup ? "\n" + memory.followup : ""}
+${timeRule(!!sources?.length)}${since ? "\n" + updateRule(since) : ""}${reader ? "\n" + READER_RULE : ""}${styleRule(prefs)}${memory?.answer ? "\n" + memory.answer : ""}
 ${THINK}
 
 ${format(!!sources?.length, prefs?.style, reader)}`,

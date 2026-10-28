@@ -3,7 +3,7 @@ import { useSettings } from "../settings/store.ts";
 import { buildMemory, usedSites } from "../memory/brief.ts";
 import { noteAsk } from "../memory/run.ts";
 import { recordAngle } from "../memory/store.ts";
-import { articleKeys, type AnswerRequest, type OpKind, type StreamEvent } from "../core/protocol.ts";
+import { articleKeys, keepFullText, type AnswerRequest, type OpKind, type StreamEvent } from "../core/protocol.ts";
 import type { GNode } from "./types.ts";
 import { addAt, addNode, commitNodes, get, isReady, newNode, parkedDone, patch, patchAt, pathOf, relatedQuestions, set, stripCites, toContext } from "./core.ts";
 import { toast } from "./toast.ts";
@@ -78,7 +78,7 @@ function applyEvent(map: string, id: string, ev: StreamEvent) {
     case "vision":
       return patch(() => ({ imageNote: ev.text }));
     case "sources": {
-      patch(() => ({ sources: ev.sources }));
+      patch((n) => ({ sources: keepFullText(n.sources, ev.sources) }));
       // 正在读的来源被复查剔除了：退出阅读视图，否则之后补搜又搜回这条时侧边栏会自己跳回阅读
       const { reading } = get();
       if (get().map?.id === map && reading?.nodeId === id && !ev.sources.some((s) => s.id === reading.sourceId)) set({ reading: null });

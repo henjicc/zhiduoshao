@@ -1,8 +1,12 @@
 import { completeFast } from "../api/client.ts";
+import { listMeta } from "../history/db.ts";
 import { CONSOLIDATE_AT, consolidatePrompt, parseMemory } from "./consolidate.ts";
 import { recordAsk, recordSite, topAngles, topSites, useMemory } from "./store.ts";
 
 // 记忆的运行时部分：攒够提问后在后台整理，以及监听来源链接的点击。
+
+/** 整理时带上最近几张地图的标题：一批提问只有几次，跨批次反复出现的关注要靠它看出来 */
+const RECENT_MAPS = 12;
 
 let running = false;
 
@@ -14,7 +18,14 @@ export async function consolidate() {
   running = true;
   useMemory.setState({ pending: [] });
   try {
-    const raw = await completeFast("memory", consolidatePrompt(text, { pending, sites: topSites(state), angles: topAngles(state) }));
+    // 读不到历史时照样整理，只是少了跨地图的判断依据
+    const metas = await listMeta().catch((e) => { console.error("[memory] 读取历史地图失败", e); return []; });
+    // 近期提问所在的地图都要有标题（分组用），不占「其他地图」的名额
+    const asked = new Set(pending.map((s) => s.mapId));
+    const usable = metas.filter((m) => !state.offMaps.includes(m.id));
+    const maps = [...usable.filter((m) => asked.has(m.id)), ...usable.filter((m) => !asked.has(m.id) && state.maps.includes(m.id)).slice(0, RECENT_MAPS)]
+      .map(({ id, title }) => ({ id, title }));
+    const raw = await completeFast("memory", consolidatePrompt(text, { pending, sites: topSites(state), angles: topAngles(state), maps }));
     const next = raw ? parseMemory(raw) : null;
     if (!next || useMemory.getState().updatedAt !== updatedAt) {
       useMemory.setState((s) => ({ pending: [...pending, ...s.pending].slice(-30) }));
