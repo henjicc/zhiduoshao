@@ -1,13 +1,13 @@
 import { runAgent, type AgentDeps, type AgentSpec, type Outcome } from "./agent.ts";
 import { readObservation, researchObservation, researchPrompt } from "./prompts.ts";
-import { queryKey, SOURCES_CAP, type Industry, type SearchPlan, type Source, type StreamEvent } from "./protocol.ts";
+import { articleKeys, fullTextIssue, queryKey, SOURCES_CAP, type Industry, type SearchPlan, type Source, type StreamEvent } from "./protocol.ts";
 import { ProviderError, type SearchProvider } from "./providers/types.ts";
 import type { PageReader } from "./providers/web.ts";
 
 // 研究 Agent：规划检索 → 搜索 → 复查，资料不够就换词再搜，摘要不够深时读几篇全文。跑在 agent.ts 的内核上，动作：
 //   {"action":"search","queries":[{"q":"...","time":"m1","field":"news"}],"sources":N,"missing":"还缺什么"}
 //   {"action":"read","ids":[3,7],"reason":"为什么要读全文"}
-//   {"action":"done"}
+//   {"action":"done","drop":[4,9]}（drop 可省：不交给写答案的来源，离题、内容农场、营销软文或重复）
 // 整个循环是同一段对话：模型看得到前面的规划、每轮拿到了什么、读了哪些全文、上一轮认为还缺什么。
 
 export interface ResearchDeps extends AgentDeps {
@@ -103,24 +103,32 @@ export function parseSearch(input: Record<string, unknown>, searched: string[], 
 /** 每个查询取多少条：总量按查询数平分并留出去重余量，取元宝支持的档位（10 到 50） */
 export const perQuery = (limit: number, queries: number) => Math.min(50, Math.max(10, Math.ceil((limit * 1.5) / queries / 10) * 10));
 
-/** 并行检索，交错合并多个查询的结果并按 id 去重，保证每个查询的头部结果都能入选；exclude 为已有来源。
+/** 去重：任何一个键见过（或在 exclude 里）就算重复 */
+function dedupe(exclude: Set<string>) {
+  const seen = new Set(exclude);
+  return (s: Source) => {
+    const keys = articleKeys(s);
+    if (keys.some((k) => seen.has(k))) return false;
+    for (const k of keys) seen.add(k);
+    return true;
+  };
+}
+
+/** 并行检索，交错合并多个查询的结果并去重，保证每个查询的头部结果都能入选；exclude 为已有来源的键（见 articleKeys）。
  * results 为去重前的总条数，unique 为其中不重复、也不是已有来源的条数，hits 为每个查询各返回几条（限定站点的查询可能为 0，要告诉模型） */
 async function searchAll(deps: ResearchDeps, plan: Plan, signal: AbortSignal, exclude: Set<string>): Promise<{ fresh: Source[]; results: number; unique: number; hits: number[] }> {
   if (!deps.search) throw new ProviderError("yuanbao", "尚未填写元宝搜索 API Key", undefined, "config");
   const count = perQuery(plan.sources, plan.queries.length);
   const lists = await Promise.all(plan.queries.map((p) => deps.search!.search(p.q, { count, freshness: p.freshness, industry: p.industry, site: p.site, signal })));
   const out: Source[] = [];
-  const seen = new Set(exclude);
+  const take = dedupe(exclude);
   for (let i = 0; out.length < plan.sources && lists.some((l) => i < l.length); i++) {
     for (const l of lists) {
       const s = l[i];
-      if (s && !seen.has(s.id) && out.length < plan.sources) {
-        seen.add(s.id);
-        out.push(s);
-      }
+      if (s && out.length < plan.sources && take(s)) out.push(s);
     }
   }
-  const unique = new Set(lists.flat().map((s) => s.id).filter((id) => !exclude.has(id))).size;
+  const unique = lists.flat().filter(dedupe(exclude)).length;
   return { fresh: out, results: lists.reduce((sum, l) => sum + l.length, 0), unique, hits: lists.map((l) => l.length) };
 }
 
@@ -138,8 +146,15 @@ export function parseRead(input: Record<string, unknown>, sources: Source[], lef
   return ids.length ? ids.slice(0, Math.min(READ_PER_ACTION, left)) : null;
 }
 
+/** done 动作的 drop：复查判定不交给写答案的来源序号。已有来源（前 known 条）的序号不能变，不能丢；
+ * 要把来源全部丢掉时写答案就没有材料了，按判断有误处理，一条不丢 */
+export function parseDrop(input: Record<string, unknown>, total: number, known: number): Set<number> {
+  const drop = new Set((Array.isArray(input.drop) ? input.drop : []).map(Number).filter((n) => Number.isInteger(n) && n > known && n <= total));
+  return drop.size < total ? drop : new Set();
+}
+
 /**
- * 为问题检索资料，返回全部来源。known 是已有来源（搜索更多来源、综合节点），新来源接在它们后面、保持原序号；
+ * 为问题检索资料，返回交给写答案的来源（复查用 drop 剔除的不在其中）。known 是已有来源（搜索更多来源、综合节点），新来源接在它们后面、保持原序号；
  * searched 是已搜过的查询词，补充检索时避开。
  */
 export async function* research(
@@ -170,7 +185,7 @@ export async function* research(
     // 看看新进展或用户选了时间范围：由程序统一限定，模型给的不算；上一层已有的来源不算新内容
     const run = opts.freshness ? { ...plan, queries: plan.queries.map((p) => ({ ...p, freshness: opts.freshness })) } : plan;
     const started = Date.now();
-    const { fresh, results, unique, hits } = await searchAll(deps, run, signal, new Set([...(opts.exclude ?? []), ...sources.map((s) => s.id)]));
+    const { fresh, results, unique, hits } = await searchAll(deps, run, signal, new Set([...(opts.exclude ?? []), ...sources.flatMap(articleKeys)]));
     yield { type: "searched", results, unique, plans: run.queries.map((p, i) => ({ ...p, hits: hits[i], round: rounds })), ms: Date.now() - started, ...(plan.missing ? { reason: plan.missing } : {}) };
     const offset = sources.length;
     sources = [...sources, ...fresh].slice(0, cap);
@@ -193,8 +208,9 @@ export async function* research(
       const started = Date.now();
       try {
         const page = await deps.reader!.read(s.url, signal);
-        deps.log(`research: read [${n}] ${page.text.length} chars in ${Date.now() - started}ms`, s.url);
-        return { n, text: page.text };
+        const issue = fullTextIssue(s, page.text);
+        deps.log(`research: read [${n}] ${page.text.length} chars in ${Date.now() - started}ms${issue ? ", shorter than snippet" : ""}`, s.url);
+        return issue ? { n, error: issue } : { n, text: page.text };
       } catch (err) {
         if (signal.aborted) throw err;
         const reason = err instanceof Error ? err.message : String(err);
@@ -211,6 +227,14 @@ export async function* research(
     return { observe: `${readObservation(results.map((r) => ({ n: r.n, title: sources[r.n - 1].title, text: r.text, error: r.error })))}\n（${options()}）` };
   }
 
+  async function* finish(drop: Set<number>): AsyncGenerator<StreamEvent, Outcome<Source[]>> {
+    if (drop.size) {
+      sources = sources.filter((_, i) => !drop.has(i + 1));
+      yield { type: "sources", sources };
+    }
+    return { finish: sources };
+  }
+
   const spec: AgentSpec<Source[]> = {
     name: "research",
     messages: researchPrompt(question, path, opts.note, searched, !!deps.reader, opts.official, opts.memory, opts.images),
@@ -224,9 +248,9 @@ export async function* research(
         run: (ids: number[]) => read(ids),
       },
       done: {
-        parse: () => true,
+        parse: (input) => parseDrop(input, sources.length, known.length),
         // 一次都还没搜就说够了：联网模式下仍按原问题搜一轮，答案至少有来源可依
-        run: () => (rounds === 0 ? search({ queries: [{ q: question }], sources: SOURCES_DEFAULT }) : (async function* () { return { finish: sources }; })()),
+        run: (drop: Set<number>) => (rounds === 0 ? search({ queries: [{ q: question }], sources: SOURCES_DEFAULT }) : finish(drop)),
       },
     },
     budget: { maxSteps: MAX_STEPS, maxMs: RESEARCH_MS },

@@ -27,10 +27,33 @@ const VISUAL_RULE = `数据：可选的可视化卡片。搜索结果里有合�
 - 一到四个关键数字（评分、价格、规模、日期），或两样东西之间各项的提升幅度（问“提升多少”“差多少”时用它，如 CPU +20%）：{"kind":"stats","title":"标题","items":[{"label":"指标","value":"9.2","cites":[3]}]}，数值带单位，不超过 10 字。
 每一项只标一到两个最直接的来源序号。标题不超过 16 字。这一行放在结论下面，必须以「数据：」开头，后面接整段写成一行的 JSON；要点不要重复这里已经列出的数据。`;
 
-const format = (visual: boolean) => `按下面的纯文本格式输出，不要 Markdown，不要多余的话：
-结论：第一句就是精准的答案本身——具体的结论、数字、日期、是或否、该怎么做，不铺垫、不复述问题。长度按问题需要，不设字数：单一事实一两句就够；需要理解的问题写成一段完整、好懂的解释，通常两到四句：先用大白话说清它是什么、怎么回事，必要时打个比方，最后一句带出它现在的状态。要简洁，但信息量要足，不要为了短而省掉关键信息。结论里少用术语，非用不可的顺手解释；排名、参数、价格、百分比这类数字不放结论，放进要点或数据卡片；不要用“到某年某月”“截至目前”开头。${visual ? "\n" + VISUAL_RULE : ""}
+/**
+ * 卡片结论与要点的长度只在这里定，风格（styleRule）与读者判断（READER_RULE）不写长度：几处都写时说法容易矛盾，模型会按最后读到的那条写。
+ * 简洁明了、详细深入各有一套；其他风格按问题决定
+ */
+const LENGTH = {
+  auto: {
+    summary: "长度按问题需要，不设字数：单一事实一两句就够；需要理解的问题写成一段完整、好懂的解释，通常两到四句：先用大白话说清它是什么、怎么回事，必要时打个比方，最后一句带出它现在的状态。要简洁，但信息量要足，不要为了短而省掉关键信息。",
+    points: "按需要写 2 到 6 条，每条是结论之外的一个补充知识点：一到三句，讲清一件具体的事（例子、数据、原理、区别或注意事项），不要只写一个短语，也不要重复结论说过的话；单一事实（某个数字、日期、是否）少写，需要理解的问题多写。",
+  },
+  concise: {
+    summary: "一到两句，只说答案本身。",
+    points: "写 2 到 4 条，每条一句话，只留最关键的补充，不要重复结论说过的话。",
+  },
+  deep: {
+    summary: "写成一段完整的解释，三到五句：说清它是什么、为什么会这样、现在怎样，必要时打个比方。",
+    points: "写 4 到 6 条，每条两到三句，讲清一件具体的事，带上数据、原理或适用条件，不要重复结论说过的话。",
+  },
+};
+
+/** reader：带了 READER_RULE（按读者判断详略）时，按问题决定长度的风格给入门读者多写几条 */
+const format = (visual: boolean, style: Prefs["style"] | undefined, reader: boolean) => {
+  const len = style === "concise" || style === "deep" ? LENGTH[style] : LENGTH.auto;
+  const forBeginner = reader && len === LENGTH.auto ? "按入门读者答时写 4 到 6 条。" : "";
+  return `按下面的纯文本格式输出，不要 Markdown，不要多余的话：
+结论：第一句就是精准的答案本身——具体的结论、数字、日期、是或否、该怎么做，不铺垫、不复述问题。${len.summary}结论里少用术语，非用不可的顺手解释；排名、参数、价格、百分比这类数字不放结论，放进要点或数据卡片；不要用“到某年某月”“截至目前”开头。${visual ? "\n" + VISUAL_RULE : ""}
 要点：
-- 按需要写 2 到 6 条，每条是结论之外的一个补充知识点：一到三句，讲清一件具体的事（例子、数据、原理、区别或注意事项），不要只写一个短语，也不要重复结论说过的话；单一事实（某个数字、日期、是否）少写，需要理解的问题多写。更系统的展开留给详情页。
+- ${len.points}${forBeginner}更系统的展开留给详情页。
 追问：
 [角度] 具体问句，每条不超过 22 字。数量由你按这个问题真正值得继续追问的方向决定，最多 6 条，宁少勿滥，不要凑数；问题已经答完整、没有值得继续追问的方向时，这一段只写「追问：无」。角度是 2 到 4 字的标签，按方向自拟（如原因、影响、对比、成本、风险、历史、替代方案），各条角度尽量不同；“已有问题”是地图上已经展开过的，不要重复或同义。
 
@@ -44,10 +67,12 @@ const format = (visual: boolean) => `按下面的纯文本格式输出，不要 
 [为什么] 为什么原厂更愿意生产高带宽内存？
 [走势] 这轮涨价还会持续多久？
 [真伪] 这是真实缺货还是厂商在控制供给？`;
+};
 
 const CITE_RULE = `以搜索结果为主要依据，句末用 [序号] 标注来源（可多个）。
 - 搜索结果没覆盖到的部分，尤其是常识、方法建议、一般原理这类问题，可以用你自己的知识补充，直接给出有用的回答；这些句子不标 [序号]，也不要冒充来源。
 - 具体数据、日期、人名机构、最新动态只用来源里的，不要编造；来源之间有冲突就如实说明。
+- 来源可信度不一：官方、原始出处和主流媒体优先；只有一个不知名网站给出的具体数字，不放进结论和数据卡片。
 - 不要写“材料未提及”“资料没有给出”这类话，直接回答用户的问题。
 - 来源下的「配图」是搜索服务对文中图片的文字描述，属于该来源的内容，可以同样引用它的序号；追问也可以从配图和来源里提到但没展开的线索找方向。`;
 
@@ -56,21 +81,22 @@ const CITE_RULE = `以搜索结果为主要依据，句末用 [序号] 标注来
  * 问题里已经带着术语、条件或对比，说明对方懂行，直接给精准答案。用户自定义了回答风格时以用户为准，不加这条
  */
 export const READER_RULE = `先从提问方式判断对方懂多少，再决定答多细：
-- 问题很短、很基础，没有任何限定或背景（如“X 是啥”“什么是 X”“X 有什么用”），说明对方几乎不了解这个领域，按入门读者来答：结论用大白话说清它是什么、主要用来做什么、现在发展到什么程度；要点写 4 到 6 条，覆盖它能做什么、大致怎么运作、和对方可能熟悉的东西有什么关系，最好带一个具体例子；术语第一次出现时顺手用半句话解释；追问优先给入门路径上的下一步（怎么上手、和相近概念的区别、常见用途）。
+- 问题很短、很基础，没有任何限定或背景（如“X 是啥”“什么是 X”“X 有什么用”），说明对方几乎不了解这个领域，按入门读者来答：结论用大白话说清它是什么、主要用来做什么、现在发展到什么程度；要点覆盖它能做什么、大致怎么运作、和对方可能熟悉的东西有什么关系，最好带一个具体例子；术语第一次出现时顺手用半句话解释；追问优先给入门路径上的下一步（怎么上手、和相近概念的区别、常见用途）。
 - 问题里已经带着专业术语、具体条件、版本或对比，说明对方懂行：直接给精准答案，不解释基础概念。`;
 
-/** 用户选的回答风格：只改措辞与详略，输出格式不变；默认的自动由模型按问题决定详略，不额外要求 */
+/** 用户选的回答风格的措辞要求，回答、综合与详解共用；卡片长度在 LENGTH。默认的自动不额外要求 */
 export function styleRule(prefs?: Prefs) {
   switch (prefs?.style) {
-    case "concise": return "\n回答风格：简洁明了。结论一到两句，要点每条一句话、只留最关键的；格式不变。";
+    case "concise": return "\n回答风格：简洁明了，只留最关键的信息。";
     case "plain": return "\n回答风格：通俗易懂。少用术语，必须用到的术语顺手用一句大白话解释，可以打比方；格式不变。";
-    case "deep": return "\n回答风格：详细深入。结论可以写到三句话，要点写满并带上具体数据、原理或条件；格式不变。";
+    case "deep": return "\n回答风格：详细深入，多给具体数据、原理和适用条件。";
     case "custom": return prefs.customStyle.trim() ? `\n用户希望的回答风格：${prefs.customStyle.trim().slice(0, 100)}（只影响措辞与详略，格式不变）` : "";
     default: return "";
   }
 }
 
-const NO_SEARCH_RULE = `本次没有联网搜索，基于自身知识回答，不要标注 [序号]；不确定的地方要说明。`;
+/** 不联网时模型会把知识截止之后出现的东西说成「不存在」：没听说过只能说明知识里没有 */
+const NO_SEARCH_RULE = `本次没有联网搜索，基于自身知识回答，不要标注 [序号]；不确定的地方要说明。你没听说过的产品、事件或说法，可能出现在你的知识之后，不要断言它不存在，直接说你的知识里没有相关信息、建议联网再查。`;
 
 /**
  * 时效：只给日期不够，模型会把来源里几年前的数据当现状、把自己训练时的知识当最新。
@@ -157,7 +183,7 @@ export function researchPrompt(question: string, path: { q: string }[], imageNot
 输出一个搜索动作，例如：{"action":"search","queries":[{"q":"内存价格 上涨 原因","time":"m1"},{"q":"HBM 产能 挤占 DDR5","field":"news"}],"sources":N}（N 按上面的规则取整数）；限定站点写作 {"q":"useEffect 清理函数","site":"react.dev"}
 
 之后每轮收到搜索结果时：
-- 资料已能回答，或问题属于常识、方法建议、一般原理这类主要靠通用知识就能答好的，判定为够，输出 {"action":"done"}。
+- 资料已能回答，或问题属于常识、方法建议、一般原理这类主要靠通用知识就能答好的，判定为够，输出 {"action":"done"}。判定为够时，用 drop 列出不要交给写答案的来源序号：明显离题的、内容农场或营销软文、和别的来源内容重复的；拿不准的留着，都能用就不写 drop，例如 {"action":"done","drop":[4,9]}。
 - 只有缺少关键事实、数据、最新进展，或问题的某个方面完全没被覆盖时，才继续搜索：用 missing 一句话写清还缺什么，再给 1 到 2 个新的查询词（可带 time、field），换角度或换说法，也可以换一个限定站点，或去掉没有结果的站点限定，不要与搜过的重复，例如 {"action":"search","missing":"还缺什么","queries":[{"q":"..."}]}。${canRead ? `
 - 摘要只是网页的片段。问题需要深入的细节、完整的步骤或论证，而某几条来源看起来正好讲这些、摘要却不够时，可以读这些来源的全文：一次最多 3 篇，用 reason 写清为什么要读，例如 {"action":"read","ids":[3,7],"reason":"要完整的实验数据"}。读网页每篇要几秒，摘要已经够用时不要读。` : ""}${memory ? "\n\n" + memory : ""}
 
@@ -195,15 +221,16 @@ export function readObservation(results: { n: number; title: string; text?: stri
 const updateRule = (since: string) => `这是对探索路径最后一层的跟进：只写 ${since} 至今的新变化，并和那一层的结论对照，说明哪些变了、有没有推翻之前的说法。搜索结果里发布早于 ${since} 的内容不算新进展。没有查到新变化时，结论直接写「${since} 以来没有查到新的进展」，不要用自身知识补充。`;
 
 export function answerPrompt(question: string, path: { q: string; summary: string }[], existing: string[], sources: Source[] | null, imageNote?: string, since?: string, prefs?: Prefs, memory?: MemoryBrief, images?: string[]): ChatMessage[] {
+  const reader = prefs?.style !== "custom";
   return [
     {
       role: "system",
       content: `你是「知多少」的研究助手，帮用户一层层弄懂一个话题。
 ${sources ? CITE_RULE : NO_SEARCH_RULE}
-${timeRule(!!sources?.length)}${since ? "\n" + updateRule(since) : ""}${prefs?.style === "custom" ? "" : "\n" + READER_RULE}${styleRule(prefs)}${memory?.answer ? "\n" + memory.answer : ""}${memory?.followup ? "\n" + memory.followup : ""}
+${timeRule(!!sources?.length)}${since ? "\n" + updateRule(since) : ""}${reader ? "\n" + READER_RULE : ""}${styleRule(prefs)}${memory?.answer ? "\n" + memory.answer : ""}${memory?.followup ? "\n" + memory.followup : ""}
 ${THINK}
 
-${format(!!sources?.length)}`,
+${format(!!sources?.length, prefs?.style, reader)}`,
     },
     {
       role: "user",
@@ -222,23 +249,26 @@ const OP_TASK: Record<OpKind, string> = {
   summary: "把这些节点整合成一个整体结论，指出最重要的共同发现。",
   relate: "找出这些节点之间的关系（因果、并列、递进或矛盾），说明串起它们的关键线索。",
   deepen: "在这些节点的基础上更深入一层：补充细节、数据和最新进展。",
-  expand: "从这些节点的交汇处提出新的探索方向。要点 2 到 3 条即可，重点放在追问。",
+  expand: "从这些节点的交汇处提出新的探索方向，重点放在追问。",
   custom: "按用户的指令处理这些节点。",
 };
 
 export function synthesizePrompt(op: OpKind, instruction: string | undefined, nodes: NodeContext[], sources: Source[], existing: string[], search: boolean, prefs?: Prefs): ChatMessage[] {
+  // 扩散重在追问，长度固定按简洁写；简洁、详细这两种管详略的风格与它冲突，不加，管措辞的风格照加
+  const expand = op === "expand";
+  const style = expand && (prefs?.style === "concise" || prefs?.style === "deep") ? undefined : prefs;
   return [
     {
       role: "system",
       content: `你是「知多少」的研究助手。用户在知识地图上选中了几个节点，需要你综合处理。
 任务：${OP_TASK[op]}
 ${search || sources.length ? CITE_RULE : NO_SEARCH_RULE}
-${timeRule(sources.length > 0)}${styleRule(prefs)}
+${timeRule(sources.length > 0)}${styleRule(style)}
 ${THINK}
 
 在下面格式的最前面加一行：
 标题：<结果节点的标题，问句或短语，不超过 22 字>
-${format(sources.length > 0)}`,
+${format(sources.length > 0, expand ? "concise" : prefs?.style, false)}`,
     },
     {
       role: "user",

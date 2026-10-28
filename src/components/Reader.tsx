@@ -1,7 +1,7 @@
 import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, LoaderCircle, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { readPage } from "../api/client.ts";
-import type { Source } from "../core/protocol.ts";
+import { fullTextIssue, type Source } from "../core/protocol.ts";
 import { openExternal } from "../lib/external.ts";
 import { relativeTime, short } from "../lib/format.ts";
 import { findPassage, quotesFor, splitSentences } from "../lib/match.ts";
@@ -27,11 +27,16 @@ export function Reader({ node, n }: { node: GNode; n: number }) {
     const ctrl = new AbortController();
     setLoad({ state: "loading" });
     readPage(s.url, ctrl.signal).then(
-      (page) => { actions.setSourceText(node.id, n, page.text); setLoad({ state: "done" }); },
+      (page) => {
+        const issue = fullTextIssue(s, page.text);
+        if (issue) return setLoad({ state: "error", reason: issue });
+        actions.setSourceText(node.id, s.id, page.text);
+        setLoad({ state: "done" });
+      },
       (err) => { if (!ctrl.signal.aborted) setLoad({ state: "error", reason: err instanceof Error ? err.message : String(err) }); },
     );
     return () => ctrl.abort();
-  }, [node.id, n, s?.url]);
+  }, [node.id, s?.url]);
 
   // ← → 切换来源，Esc 回到详情（捕获阶段处理，避免同时关掉整个侧边栏）
   useEffect(() => {

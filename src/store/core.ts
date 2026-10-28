@@ -28,8 +28,9 @@ export interface GraphState {
   opened: Record<string, true>;
   selected: string[];
   drawerId: string | null;
-  /** 侧边栏里正在阅读的来源（节点 id 与来源序号，1 起）；为 null 时侧边栏显示节点详情 */
-  reading: { nodeId: string; n: number } | null;
+  /** 侧边栏里正在阅读的来源（节点 id 与来源 id）；为 null 时侧边栏显示节点详情。
+   * 按 id 而不是序号定位：回答过程中复查会剔除来源，序号会变 */
+  reading: { nodeId: string; sourceId: string } | null;
   summaryOpen: boolean;
   search: boolean;
   view: View;

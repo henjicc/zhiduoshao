@@ -248,22 +248,23 @@ export const actions = {
     const s = get().nodes[nodeId]?.sources[n - 1];
     if (!s) return;
     if (s.url) recordSite(s.url, get().map?.id);
-    commitNodes(get().nodes, { drawerId: nodeId, reading: { nodeId, n }, ...focusOf(nodeId) });
+    commitNodes(get().nodes, { drawerId: nodeId, reading: { nodeId, sourceId: s.id }, ...focusOf(nodeId) });
   },
 
   /** 阅读视图里切换到上一条 / 下一条来源（循环） */
   stepSource(delta: number) {
     const { reading, nodes } = get();
-    const total = reading ? nodes[reading.nodeId]?.sources.length ?? 0 : 0;
-    if (!reading || !total) return;
-    set({ reading: { nodeId: reading.nodeId, n: ((reading.n - 1 + delta + total) % total) + 1 } });
+    const sources = reading ? nodes[reading.nodeId]?.sources ?? [] : [];
+    const i = reading ? sources.findIndex((s) => s.id === reading.sourceId) : -1;
+    if (!reading || i < 0) return;
+    set({ reading: { nodeId: reading.nodeId, sourceId: sources[(i + delta + sources.length) % sources.length].id } });
   },
 
   closeReader: () => set({ reading: null }),
 
   /** 阅读视图读到全文后写回来源：之后写答案、引用气泡也能用全文 */
-  setSourceText(nodeId: string, n: number, text: string) {
-    patch(nodeId, (node) => ({ sources: node.sources.map((s, i) => (i === n - 1 ? { ...s, text } : s)) }));
+  setSourceText(nodeId: string, sourceId: string, text: string) {
+    patch(nodeId, (node) => ({ sources: node.sources.map((s) => (s.id === sourceId ? { ...s, text } : s)) }));
   },
   openSummary: () => set({ summaryOpen: true }),
   closeSummary: () => set({ summaryOpen: false }),

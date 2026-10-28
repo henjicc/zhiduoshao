@@ -3,7 +3,7 @@ import { useSettings } from "../settings/store.ts";
 import { buildMemory, usedSites } from "../memory/brief.ts";
 import { noteAsk } from "../memory/run.ts";
 import { recordAngle } from "../memory/store.ts";
-import type { AnswerRequest, OpKind, StreamEvent } from "../core/protocol.ts";
+import { articleKeys, type AnswerRequest, type OpKind, type StreamEvent } from "../core/protocol.ts";
 import type { GNode } from "./types.ts";
 import { addAt, addNode, commitNodes, get, isReady, newNode, parkedDone, patch, patchAt, pathOf, relatedQuestions, set, stripCites, toContext } from "./core.ts";
 import { toast } from "./toast.ts";
@@ -77,8 +77,13 @@ function applyEvent(map: string, id: string, ev: StreamEvent) {
       return patch((n) => ({ thinking: n.thinking + ev.delta }));
     case "vision":
       return patch(() => ({ imageNote: ev.text }));
-    case "sources":
-      return patch(() => ({ sources: ev.sources }));
+    case "sources": {
+      patch(() => ({ sources: ev.sources }));
+      // 正在读的来源被复查剔除了：退出阅读视图，否则之后补搜又搜回这条时侧边栏会自己跳回阅读
+      const { reading } = get();
+      if (get().map?.id === map && reading?.nodeId === id && !ev.sources.some((s) => s.id === reading.sourceId)) set({ reading: null });
+      return;
+    }
     case "searched":
       return patch((n) => ({
         searchResults: n.searchResults + ev.results, searches: [...n.searches, ...ev.plans], searchMs: n.searchMs + ev.ms,
@@ -145,7 +150,7 @@ export function runAnswer(id: string, more?: AnswerRequest["more"]) {
   if (!more && !n.since && !n.answeredAt && !n.compareOf) noteAsk(n.q, map);
   reportAction("ask", { nodeId: id, question: n.q });
   // 看看新进展：上一层已有的来源不算新内容
-  const exclude = n.since && n.parent ? get().nodes[n.parent]?.sources.map((s) => s.id) : undefined;
+  const exclude = n.since && n.parent ? get().nodes[n.parent]?.sources.flatMap(articleKeys) : undefined;
   const req: AnswerRequest = { question: n.q, path: pathOf(id), existing: relatedQuestions([id]).filter((q) => q !== n.q), search, images: n.images, imageNote: n.imageNote || undefined, more, since: n.since ?? undefined, exclude, prefs: prefs() };
   // 先从记忆和历史地图里取这次用得上的（读本机数据库，很快），再发请求
   void buildMemory(n.q, map).catch(() => null).then((mem) => {

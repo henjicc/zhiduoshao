@@ -1,4 +1,4 @@
-import type { AnswerRequest, DetailRequest, NodeContext, Prefs, Source, StreamEvent, SummaryRequest, SynthesizeRequest } from "./protocol.ts";
+import { articleKeys, type AnswerRequest, type DetailRequest, type NodeContext, type Prefs, type Source, type StreamEvent, type SummaryRequest, type SynthesizeRequest } from "./protocol.ts";
 import { ProviderError, type LLMProvider } from "./providers/types.ts";
 import { AnswerParser } from "./format.ts";
 import { answerPrompt, detailPrompt, summaryPrompt, synthesizePrompt, today, visionPrompt } from "./prompts.ts";
@@ -61,19 +61,22 @@ export async function* answer(deps: Deps, req: AnswerRequest, signal: AbortSigna
   yield { type: "done" };
 }
 
-/** 合并多个节点的来源并把各节点的角标改写为合并后的序号 */
+/** 合并多个节点的来源并把各节点的角标改写为合并后的序号；同一篇文章（见 articleKeys）只留一个序号 */
 export function mergeSources(nodes: NodeContext[]) {
   const sources: Source[] = [];
   const index = new Map<string, number>();
   const remapped = nodes.map((n) => {
     const local = n.sources.map((s) => {
-      if (!index.has(s.id)) {
+      const keys = articleKeys(s);
+      let at = keys.map((k) => index.get(k)).find((i) => i !== undefined);
+      if (at === undefined) {
         sources.push(s);
-        index.set(s.id, sources.length);
+        at = sources.length;
       }
-      return index.get(s.id)!;
+      for (const k of keys) if (!index.has(k)) index.set(k, at);
+      return at;
     });
-    return { ...n, points: n.points.map((p) => ({ ...p, cites: p.cites.map((c) => local[c - 1]).filter(Boolean) })) };
+    return { ...n, points: n.points.map((p) => ({ ...p, cites: [...new Set(p.cites.map((c) => local[c - 1]).filter(Boolean))] })) };
   });
   return { sources, nodes: remapped };
 }

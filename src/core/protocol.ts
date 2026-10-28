@@ -52,8 +52,23 @@ export interface Source {
   pics?: { url: string; caption: string }[];
   /** 附件子链（元宝旗舰版） */
   links?: { title: string; url: string }[];
-  /** 研究 Agent 读取到的网页正文（按需抓取，截到上限）；有它时写答案优先用全文 */
+  /** 研究 Agent 或阅读视图读取到的网页正文（按需抓取，截到上限，只收比摘要长的，见 fullTextIssue）；有它时写答案优先用全文 */
   text?: string;
+}
+
+/** 读到的正文不比搜索摘要长时（登录页、脚本渲染出的空壳，或短文本身），全文没有多出内容，继续用摘要。返回不用的原因，能用时为 null */
+export function fullTextIssue(s: Source, text: string): string | null {
+  return text.length > s.snippet.length ? null : `读到的正文只有 ${text.length} 字，不比搜索摘要长`;
+}
+
+/**
+ * 认出同一篇文章的键：网址，加上摘要开头。同一篇换了网址（http 与 https、转载、arXiv 的 abs 与 html）时摘要相同，
+ * 转载算成多个来源时写答案的模型会当成多方印证。只比开头几十字会把引用同一段原文的不同文章误认成一篇，所以取前 120 字；
+ * 摘要不足 60 字时开头相同说明不了什么，只用网址
+ */
+export function articleKeys(s: Source): string[] {
+  const head = s.snippet.replace(/[\s\p{P}\p{S}]/gu, "").slice(0, 120);
+  return head.length >= 60 ? [s.id, `snippet:${head}`] : [s.id];
 }
 
 export interface Point {
@@ -122,7 +137,7 @@ export interface AnswerRequest {
   imageNote?: string;
   /** 搜索更多来源：已经搜过的查询词与已有来源，本次换角度补充检索后重新整理答案 */
   more?: { queries: string[]; sources: Source[] };
-  /** 看看新进展：只检索这一天（yyyy-mm-dd）到今天发布的内容，跳过上一层已有的来源（exclude 为来源 id） */
+  /** 看看新进展：只检索这一天（yyyy-mm-dd）到今天发布的内容，跳过上一层已有的来源（exclude 为这些来源的 articleKeys） */
   since?: string;
   exclude?: string[];
   prefs?: Prefs;

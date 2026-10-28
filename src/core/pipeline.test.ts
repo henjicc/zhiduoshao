@@ -4,8 +4,8 @@ import type { NodeContext, Source, StreamEvent } from "./protocol.ts";
 import { textOf, type ChatMessage, type ContentPart, type LLMProvider } from "./providers/types.ts";
 import { parsePages, requestBody } from "./providers/yuanbao.ts";
 import { answer, mergeSources } from "./pipeline.ts";
-import { answerPrompt, READER_RULE } from "./prompts.ts";
-import { parseRead, parseSearch, perQuery } from "./research.ts";
+import { answerPrompt, READER_RULE, synthesizePrompt } from "./prompts.ts";
+import { parseDrop, parseRead, parseSearch, perQuery } from "./research.ts";
 import { command } from "./router.ts";
 
 const src = (url: string): Source => ({ id: url, title: url, url, site: "s", snippet: "" });
@@ -372,4 +372,99 @@ test("回答提示词带时效规则：以最新来源为准，没联网时提�
   assert.match(withSearch, /以发布时间最新的为准/);
   assert.match(offline, /知识可能已经过时/);
   assert.match(withSearch, /追问里至少有一条指向这个话题当前的前沿/);
+  // 不联网时没听说过的东西不能说成不存在（实测把已发布的产品说成「没有这款」）
+  assert.match(offline, /不要断言它不存在/);
+});
+
+test("卡片长度只由风格决定一处：简洁、详细与默认各一套，读者判断不另写条数", () => {
+  const system = (style?: "auto" | "concise" | "deep" | "plain") =>
+    answerPrompt("PHP 是啥", [], [], null, undefined, undefined, style && { style, customStyle: "", sources: "auto", time: "auto" })[0].content as string;
+  assert.match(system("concise"), /写 2 到 4 条，每条一句话/);
+  assert.doesNotMatch(system("concise"), /4 到 6 条|一到三句/);
+  assert.match(system("deep"), /写 4 到 6 条，每条两到三句/);
+  assert.match(system("deep"), /三到五句/);
+  for (const s of [undefined, "auto", "plain"] as const) assert.match(system(s), /按需要写 2 到 6 条[\s\S]*按入门读者答时写 4 到 6 条/);
+  assert.doesNotMatch(READER_RULE, /\d 条/);
+  // 自定义风格不带读者判断，也就没有入门读者的条数；综合没有读者判断，扩散按简洁写
+  const custom = answerPrompt("PHP 是啥", [], [], null, undefined, undefined, { style: "custom", customStyle: "一句话", sources: "auto", time: "auto" })[0].content as string;
+  assert.doesNotMatch(custom, /入门读者/);
+  const synth = (op: "summary" | "expand") => synthesizePrompt(op, undefined, [], [], [], false, { style: "deep", customStyle: "", sources: "auto", time: "auto" })[0].content as string;
+  assert.match(synth("summary"), /写 4 到 6 条，每条两到三句/);
+  assert.doesNotMatch(synth("summary"), /入门读者/);
+  assert.match(synth("expand"), /写 2 到 4 条，每条一句话/);
+  assert.doesNotMatch(synth("expand"), /4 到 6 条|2 到 3 条|详细深入/);
+});
+
+test("合并多个节点的来源时，同一篇文章换了网址也只占一个序号", () => {
+  const snippet = "同一篇通稿的正文内容，被几家网站原样转载，开头一字不差，后面也完全一样，足够长才按摘要认作同一篇。".repeat(2);
+  const nodes: NodeContext[] = [
+    { q: "a", summary: "", sources: [{ ...src("https://a.cn/x"), snippet }, src("u2")], points: [{ text: "p", cites: [1, 2] }] },
+    { q: "b", summary: "", sources: [{ ...src("https://b.cn/repost"), snippet }], points: [{ text: "p", cites: [1] }] },
+  ];
+  const m = mergeSources(nodes);
+  assert.deepEqual(m.sources.map((s) => s.url), ["https://a.cn/x", "u2"]);
+  assert.deepEqual(m.nodes[1].points[0].cites, [1]);
+});
+
+test("读全文：提取到的正文不比摘要长时不算全文，继续用摘要并告诉模型", async () => {
+  const snippet = "搜索摘要里的完整说明".repeat(10);
+  const replies = ['{"action":"search","queries":["甲"],"sources":5}', '{"action":"read","ids":[1]}', '{"action":"done"}'];
+  const fast: ChatMessage[][] = [];
+  const main: ChatMessage[][] = [];
+  const llm: LLMProvider = {
+    name: "fake",
+    complete: async () => "",
+    async *stream(messages, opts = {}) {
+      if (opts.tier === "fast") { fast.push(messages); yield { content: replies.shift() ?? '{"action":"done"}' }; }
+      else { main.push(messages); yield { content: "结论：好。" }; }
+    },
+  };
+  const search = { name: "fake", search: async () => [{ ...src("https://a.cn/1"), snippet }] };
+  const reader = { read: async () => ({ title: "甲", text: "请登录后查看" }) };
+  const events = await collect(answer({ llm, search, reader, log: () => {} }, { question: "问", path: [], existing: [], search: true }, new AbortController().signal));
+  const last = events.filter((e) => e.type === "sources").pop();
+  assert.ok(last?.type === "sources" && !last.sources[0].text);
+  assert.ok(events.some((e) => e.type === "read" && e.ok === 0));
+  assert.match(textOf(fast[2][fast[2].length - 1].content), /读取失败：读到的正文只有 6 字，不比搜索摘要长/);
+  assert.match(lastText(main[0]), new RegExp(snippet));
+});
+
+test("检索去重：同一篇文章换了网址（http 与 https、转载）只留一条；摘要太短时只按网址", async () => {
+  const body = "国家网络安全通报中心发布预警，PHP 存在远程代码执行高危漏洞，影响多个版本，请尽快升级到修复版本。受影响的网站管理员应立即检查服务器配置。".repeat(2);
+  const article = (url: string, extra = ""): Source => ({ ...src(url), snippet: body + extra });
+  const lists: Record<string, Source[]> = {
+    甲: [article("https://a.cn/x"), article("http://a.cn/x"), src("https://c.cn/short")],
+    乙: [article("https://b.cn/repost", "（转载）"), src("https://d.cn/short"), article("https://a.cn/x")],
+  };
+  const { llm } = fakeLLM((tier) => (tier === "fast" ? '{"action":"search","queries":["甲","乙"],"sources":10,"quick":true}' : "结论：好。"));
+  const search = { name: "fake", search: async (q: string) => lists[q] };
+  const events = await collect(answer({ llm, search, log: () => {} }, { question: "问", path: [], existing: [], search: true }, new AbortController().signal));
+  const last = events.filter((e) => e.type === "sources").pop();
+  assert.deepEqual(last?.type === "sources" && last.sources.map((s) => s.url), ["https://a.cn/x", "https://d.cn/short", "https://c.cn/short"]);
+  assert.ok(events.some((e) => e.type === "searched" && e.results === 6 && e.unique === 3));
+});
+
+test("复查可以剔除来源：drop 的序号不交给写答案；已有来源不能丢，全部丢掉时一条不丢", async () => {
+  const run = async (done: string) => {
+    const replies = ['{"action":"search","queries":["甲"],"sources":5}', done];
+    const main: ChatMessage[][] = [];
+    const llm: LLMProvider = {
+      name: "fake",
+      complete: async () => "",
+      async *stream(messages, opts = {}) {
+        if (opts.tier === "fast") yield { content: replies.shift() ?? '{"action":"done"}' };
+        else { main.push(messages); yield { content: "结论：好。" }; }
+      },
+    };
+    const search = { name: "fake", search: async () => [src("https://a.cn"), src("https://farm.cn"), src("https://c.cn")] };
+    const events = await collect(answer({ llm, search, log: () => {} }, { question: "问", path: [], existing: [], search: true }, new AbortController().signal));
+    const last = events.filter((e) => e.type === "sources").pop();
+    return { urls: last?.type === "sources" ? last.sources.map((s) => s.url) : [], prompt: lastText(main[0]) };
+  };
+  const kept = await run('{"action":"done","drop":[2]}');
+  assert.deepEqual(kept.urls, ["https://a.cn", "https://c.cn"]);
+  assert.match(kept.prompt, /\[2\] https:\/\/c\.cn/);
+  assert.doesNotMatch(kept.prompt, /farm\.cn/);
+  assert.deepEqual((await run('{"action":"done","drop":[1,2,3]}')).urls, ["https://a.cn", "https://farm.cn", "https://c.cn"]);
+  assert.deepEqual([...parseDrop({ drop: [1, 3, 3, 9, "x"] }, 4, 2)], [3]);
 });

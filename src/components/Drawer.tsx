@@ -23,12 +23,12 @@ export function Drawer() {
   const last = useRef(n);
   if (n) last.current = n;
   const shown = n ?? last.current;
-  const readingN = reading && shown && reading.nodeId === shown.id ? reading.n : null;
+  const readingN =reading && shown && reading.nodeId === shown.id ? shown.sources.findIndex((s) => s.id === reading.sourceId) + 1 || null : null;
   return (
     <aside className="drawer" aria-hidden={!open} aria-label={readingN ? "来源阅读" : "节点详情"} inert={!open}>
       <ResizeHandle />
       {shown && (readingN
-        ? <Reader key={`${shown.id}:${readingN}`} node={shown} n={readingN} />
+        ? <Reader key={`${shown.id}:${reading?.sourceId}`} node={shown} n={readingN} />
         : <CiteNode.Provider value={shown.id}><DrawerBody key={id ?? shown.id} n={shown} /></CiteNode.Provider>)}
     </aside>
   );
