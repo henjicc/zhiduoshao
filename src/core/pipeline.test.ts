@@ -386,8 +386,8 @@ test("拆题的写法只加在探索的第一层，看看新进展与追问不�
 test("卡片长度只由风格决定一处：简洁、详细与默认各一套，读者判断不另写条数", () => {
   const system = (style?: "auto" | "concise" | "deep" | "plain") =>
     answerPrompt("PHP 是啥", [], [], null, undefined, undefined, style && { style, customStyle: "", sources: "auto", time: "auto" })[0].content as string;
-  assert.match(system("concise"), /写 2 到 4 条，每条一句话/);
-  assert.doesNotMatch(system("concise"), /4 到 6 条|一到三句/);
+  assert.match(system("concise"), /写 2 到 4 条，每条一句、30 字以内/);
+  assert.doesNotMatch(system("concise"), /4 到 6 条|25 到 60 字/);
   assert.match(system("deep"), /写 4 到 6 条，每条两到三句/);
   assert.match(system("deep"), /三到五句/);
   for (const s of [undefined, "auto", "plain"] as const) assert.match(system(s), /按需要写 2 到 6 条[\s\S]*按入门读者答时写 4 到 6 条/);
@@ -398,7 +398,7 @@ test("卡片长度只由风格决定一处：简洁、详细与默认各一套�
   const synth = (op: "summary" | "expand") => synthesizePrompt(op, undefined, [], [], [], false, { style: "deep", customStyle: "", sources: "auto", time: "auto" })[0].content as string;
   assert.match(synth("summary"), /写 4 到 6 条，每条两到三句/);
   assert.doesNotMatch(synth("summary"), /入门读者/);
-  assert.match(synth("expand"), /写 2 到 4 条，每条一句话/);
+  assert.match(synth("expand"), /写 2 到 4 条，每条一句、30 字以内/);
   assert.doesNotMatch(synth("expand"), /4 到 6 条|2 到 3 条|详细深入/);
 });
 
