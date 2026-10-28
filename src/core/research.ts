@@ -1,13 +1,13 @@
 import { runAgent, type AgentDeps, type AgentSpec, type Outcome } from "./agent.ts";
 import { readObservation, researchObservation, researchPrompt } from "./prompts.ts";
-import { articleKeys, fullTextIssue, queryKey, SOURCES_CAP, type Industry, type SearchPlan, type Source, type StreamEvent } from "./protocol.ts";
+import { articleKeys, DROP_WHY, fullTextIssue, queryKey, SOURCES_CAP, type DropWhy, type Industry, type SearchPlan, type Source, type StreamEvent } from "./protocol.ts";
 import { ProviderError, type SearchProvider } from "./providers/types.ts";
 import type { PageReader } from "./providers/web.ts";
 
 // 研究 Agent：规划检索 → 搜索 → 复查，资料不够就换词再搜，摘要不够深时读几篇全文。跑在 agent.ts 的内核上，动作：
 //   {"action":"search","queries":[{"q":"...","time":"m1","field":"news"}],"sources":N,"missing":"还缺什么"}
 //   {"action":"read","ids":[3,7],"reason":"为什么要读全文"}
-//   {"action":"done","drop":[4,9]}（drop 可省：不交给写答案的来源，离题、内容农场、营销软文或重复）
+//   {"action":"done","drop":[{"id":4,"why":"离题"}]}（drop 可省：不交给写答案的来源及理由，理由为离题、内容农场、软文或重复；也接受只写序号）
 // 整个循环是同一段对话：模型看得到前面的规划、每轮拿到了什么、读了哪些全文、上一轮认为还缺什么。
 
 export interface ResearchDeps extends AgentDeps {
@@ -146,11 +146,17 @@ export function parseRead(input: Record<string, unknown>, sources: Source[], lef
   return ids.length ? ids.slice(0, Math.min(READ_PER_ACTION, left)) : null;
 }
 
-/** done 动作的 drop：复查判定不交给写答案的来源序号。已有来源（前 known 条）的序号不能变，不能丢；
- * 要把来源全部丢掉时写答案就没有材料了，按判断有误处理，一条不丢 */
-export function parseDrop(input: Record<string, unknown>, total: number, known: number): Set<number> {
-  const drop = new Set((Array.isArray(input.drop) ? input.drop : []).map(Number).filter((n) => Number.isInteger(n) && n > known && n <= total));
-  return drop.size < total ? drop : new Set();
+/** done 动作的 drop：复查判定不交给写答案的来源序号与理由，每项是 {"id":序号,"why":理由}，也接受只写序号（不显示理由）。
+ * 已有来源（前 known 条）的序号不能变，不能丢；要把来源全部丢掉时写答案就没有材料了，按判断有误处理，一条不丢 */
+export function parseDrop(input: Record<string, unknown>, total: number, known: number): Map<number, DropWhy | undefined> {
+  const drop = new Map<number, DropWhy | undefined>();
+  for (const item of Array.isArray(input.drop) ? input.drop : []) {
+    const o = (item && typeof item === "object" ? item : { id: item }) as { id?: unknown; why?: unknown };
+    const n = Number(o.id);
+    if (!Number.isInteger(n) || n <= known || n > total || drop.has(n)) continue;
+    drop.set(n, DROP_WHY.find((w) => w === o.why));
+  }
+  return drop.size < total ? drop : new Map();
 }
 
 /**
@@ -227,8 +233,15 @@ export async function* research(
     return { observe: `${readObservation(results.map((r) => ({ n: r.n, title: sources[r.n - 1].title, text: r.text, error: r.error })))}\n（${options()}）` };
   }
 
-  async function* finish(drop: Set<number>): AsyncGenerator<StreamEvent, Outcome<Source[]>> {
+  async function* finish(drop: Map<number, DropWhy | undefined>): AsyncGenerator<StreamEvent, Outcome<Source[]>> {
     if (drop.size) {
+      yield {
+        type: "dropped",
+        sources: [...drop].map(([n, why]) => {
+          const { title, site, url, favicon } = sources[n - 1];
+          return { title, site, url, ...(favicon ? { favicon } : {}), ...(why ? { why } : {}) };
+        }),
+      };
       sources = sources.filter((_, i) => !drop.has(i + 1));
       yield { type: "sources", sources };
     }
@@ -250,7 +263,7 @@ export async function* research(
       done: {
         parse: (input) => parseDrop(input, sources.length, known.length),
         // 一次都还没搜就说够了：联网模式下仍按原问题搜一轮，答案至少有来源可依
-        run: (drop: Set<number>) => (rounds === 0 ? search({ queries: [{ q: question }], sources: SOURCES_DEFAULT }) : finish(drop)),
+        run: (drop: Map<number, DropWhy | undefined>) => (rounds === 0 ? search({ queries: [{ q: question }], sources: SOURCES_DEFAULT }) : finish(drop)),
       },
     },
     budget: { maxSteps: MAX_STEPS, maxMs: RESEARCH_MS },

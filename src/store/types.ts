@@ -1,4 +1,4 @@
-import type { Direction, ErrorCode, OpKind, Point, ResearchStep, SearchLog, Source, Stage, StageDetail, Visual } from "../core/protocol.ts";
+import type { Direction, DroppedSource, ErrorCode, OpKind, Point, ResearchStep, SearchLog, Source, Stage, StageDetail, Visual } from "../core/protocol.ts";
 
 export type NodeStatus = "idle" | "loading" | "streaming" | "ready" | "error";
 
@@ -60,6 +60,8 @@ export interface GNode {
   /** 检索过程的每一步（每轮搜索带补搜理由与去重数，以及读全文），侧边栏「检索过程」画成时间线；
    * 2026-10 之前的存档没有，按 searches 只画查询部分 */
   steps: ResearchStep[];
+  /** 复查剔除的来源（标题、站点、链接与理由），检索过程里列出；搜索更多来源时累加，重新回答时清空 */
+  dropped: DroppedSource[];
   /** 元宝搜索累计耗时（毫秒，多个查询并行发出，按每轮计） */
   searchMs: number;
   /** 元宝搜索累计返回的结果条数（去重前，含补充检索）；没联网检索过时为 0 */

@@ -457,7 +457,7 @@ test("检索去重：同一篇文章换了网址（http 与 https、转载）只
   assert.ok(events.some((e) => e.type === "searched" && e.results === 6 && e.unique === 3));
 });
 
-test("复查可以剔除来源：drop 的序号不交给写答案；已有来源不能丢，全部丢掉时一条不丢", async () => {
+test("复查可以剔除来源：drop 的序号不交给写答案、带理由报给界面；已有来源不能丢，全部丢掉时一条不丢", async () => {
   const run = async (done: string) => {
     const replies = ['{"action":"search","queries":["甲"],"sources":5}', done];
     const main: ChatMessage[][] = [];
@@ -472,12 +472,17 @@ test("复查可以剔除来源：drop 的序号不交给写答案；已有来源
     const search = { name: "fake", search: async () => [src("https://a.cn"), src("https://farm.cn"), src("https://c.cn")] };
     const events = await collect(answer({ llm, search, log: () => {} }, { question: "问", path: [], existing: [], search: true }, new AbortController().signal));
     const last = events.filter((e) => e.type === "sources").pop();
-    return { urls: last?.type === "sources" ? last.sources.map((s) => s.url) : [], prompt: lastText(main[0]) };
+    const dropped = events.flatMap((e) => (e.type === "dropped" ? e.sources : []));
+    return { urls: last?.type === "sources" ? last.sources.map((s) => s.url) : [], prompt: lastText(main[0]), dropped };
   };
-  const kept = await run('{"action":"done","drop":[2]}');
+  const kept = await run('{"action":"done","drop":[{"id":2,"why":"内容农场"}]}');
   assert.deepEqual(kept.urls, ["https://a.cn", "https://c.cn"]);
   assert.match(kept.prompt, /\[2\] https:\/\/c\.cn/);
   assert.doesNotMatch(kept.prompt, /farm\.cn/);
-  assert.deepEqual((await run('{"action":"done","drop":[1,2,3]}')).urls, ["https://a.cn", "https://farm.cn", "https://c.cn"]);
-  assert.deepEqual([...parseDrop({ drop: [1, 3, 3, 9, "x"] }, 4, 2)], [3]);
+  assert.deepEqual(kept.dropped, [{ title: "https://farm.cn", site: "s", url: "https://farm.cn", why: "内容农场" }]);
+  const all = await run('{"action":"done","drop":[1,2,3]}');
+  assert.deepEqual(all.urls, ["https://a.cn", "https://farm.cn", "https://c.cn"]);
+  assert.deepEqual(all.dropped, []);
+  // 只写序号的不带理由；不认识的理由不显示；已有来源与越界的序号丢掉
+  assert.deepEqual([...parseDrop({ drop: [1, 3, 3, 9, "x", { id: 4, why: "广告" }] }, 4, 2)], [[3, undefined], [4, undefined]]);
 });

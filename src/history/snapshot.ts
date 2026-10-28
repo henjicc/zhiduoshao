@@ -67,7 +67,7 @@ export function restoreNodes(nodes: Record<string, GNode>, legacyAnchor = false)
     const pending = n.status === "loading" || n.status === "streaming";
     // 早期存档没有图片、查询词、智能卡片与详解字段；未写完的详解下次打开时重新生成
     const base = {
-      ...n, images: n.images ?? [], imageNote: n.imageNote ?? "", queries: n.queries ?? [], searchResults: n.searchResults ?? 0, errorHint: n.errorHint ?? null, answeredAt: n.answeredAt ?? 0, since: n.since ?? null, visual: n.visual ?? null, memory: n.memory ?? null, searches: n.searches ?? [], steps: n.steps ?? [], searchMs: n.searchMs ?? 0, searchMode: n.searchMode ?? null, compareOf: n.compareOf ?? null, nextWhy: n.nextWhy ?? null, framed: n.framed ?? false, settled: n.settled ?? false,
+      ...n, images: n.images ?? [], imageNote: n.imageNote ?? "", queries: n.queries ?? [], searchResults: n.searchResults ?? 0, errorHint: n.errorHint ?? null, answeredAt: n.answeredAt ?? 0, since: n.since ?? null, visual: n.visual ?? null, memory: n.memory ?? null, searches: n.searches ?? [], steps: n.steps ?? [], dropped: n.dropped ?? [], searchMs: n.searchMs ?? 0, searchMode: n.searchMode ?? null, compareOf: n.compareOf ?? null, nextWhy: n.nextWhy ?? null, framed: n.framed ?? false, settled: n.settled ?? false,
       ...(n.detailStatus === "ready" ? { detail: n.detail, detailStatus: "ready" as const } : { detail: "", detailStatus: "idle" as const }),
       ...(legacyAnchor && !n.parent ? { ay: n.ay - LEGACY_HALF_H } : {}),
     };

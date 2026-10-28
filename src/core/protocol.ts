@@ -77,6 +77,19 @@ export function articleKeys(s: Source): string[] {
   return head.length >= 60 ? [s.id, `snippet:${head}`] : [s.id];
 }
 
+/** 复查剔除来源的理由：只认这四种，模型写别的就不显示理由 */
+export const DROP_WHY = ["离题", "内容农场", "软文", "重复"] as const;
+export type DropWhy = (typeof DROP_WHY)[number];
+
+/** 复查判定不交给写答案的来源：只留检索过程里显示要用的几项，不存摘要与全文 */
+export interface DroppedSource {
+  title: string;
+  site: string;
+  url: string;
+  favicon?: string;
+  why?: DropWhy;
+}
+
 export interface Point {
   text: string;
   /** 指向本节点 sources 的 1 基序号 */
@@ -199,6 +212,8 @@ export type StreamEvent =
   /** 一轮元宝搜索完成：服务返回的结果条数（多个查询合计，去重前）、其中不重复的新结果数（去掉本轮内重复和已有来源），
    * 以及补充检索的理由（研究助手判断还缺什么；第一轮没有） */
   | { type: "searched"; results: number; plans: SearchLog[]; ms: number; unique: number; reason?: string }
+  /** 复查判定够了，剔除了这些来源（离题、内容农场、软文或重复） */
+  | { type: "dropped"; sources: DroppedSource[] }
   /** 研究助手读了几篇来源的全文：标题与读成功的篇数 */
   | { type: "read"; titles: string[]; ok: number }
   | { type: "summary"; delta: string }

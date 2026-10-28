@@ -1,9 +1,10 @@
-import { CalendarClock, ChartCandlestick, Globe, GraduationCap, Landmark, Newspaper, type LucideIcon } from "lucide-react";
+import { CalendarClock, ChartCandlestick, ChevronDown, Globe, GraduationCap, Landmark, Newspaper, type LucideIcon } from "lucide-react";
+import { useState } from "react";
 import type { Industry, ResearchStep, SearchLog } from "../core/protocol.ts";
 import type { GNode } from "../store/types.ts";
 import { today } from "../core/prompts.ts";
 import { approxCount, readWritten } from "../lib/format.ts";
-import { MetaParts } from "./common.tsx";
+import { MetaParts, SourceIcon } from "./common.tsx";
 
 // 侧边栏「检索过程」：按研究助手实际做事的顺序画成一条时间线——拆成几个查询词、每轮同时查了哪些（参数跟在查询词后面）、
 // 为什么还要补查、读了哪几篇全文、从去重后的结果里选出几条来源，最后是读了多少字、写成多少字。参数就是 API 请求里的字段，让「怎么查的」看得见。
@@ -119,6 +120,7 @@ export function SearchLogSection({ n }: { n: GNode }) {
             </li>,
           ];
         })}
+        {done && n.dropped.length > 0 && <DroppedStep n={n} />}
         {done && n.sources.length > 0 && (
           <li className={`research-step${written ? "" : " is-done"}`}>
             <div className="research-step-head"><b>选出 {n.sources.length} 条来源</b>{unique > 0 && <span className="research-num">去重后 {unique} 条</span>}</div>
@@ -127,6 +129,32 @@ export function SearchLogSection({ n }: { n: GNode }) {
         {written && <WrittenStep n={n} />}
       </ol>
     </section>
+  );
+}
+
+/** 复查判定够了、剔除了哪些来源：默认收起，点开每行是网站图标、标题与理由，点一下用系统浏览器打开 */
+function DroppedStep({ n }: { n: GNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <li className="research-step" data-replay-id={`dropped-${n.id}`}>
+      <button type="button" className="research-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <b>判断：够了，剔除 {n.dropped.length} 条</b>
+        <ChevronDown size={14} strokeWidth={1.8} aria-hidden="true" />
+      </button>
+      {open && (
+        <ul className="dropped">
+          {n.dropped.map((d, i) => (
+            <li key={i}>
+              <a className="dropped-row" href={d.url} target="_blank" rel="noopener noreferrer">
+                <SourceIcon source={{ id: d.url, title: d.title, url: d.url, site: d.site, favicon: d.favicon, snippet: "" }} />
+                <span className="dropped-title">{d.title}</span>
+                {d.why && <span className="dropped-why">{d.why}</span>}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }
 

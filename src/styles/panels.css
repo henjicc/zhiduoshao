@@ -504,6 +504,21 @@ button.source { width: 100%; text-align: left; }
 .search-param .lucide { color: var(--ink-3); }
 .search-param.is-site { color: var(--accent); background: var(--accent-soft); }
 .search-param.is-site .lucide { color: var(--accent); }
+/* 剔除的来源：标题行可以点开，列表里每行是图标、标题（次要灰）与右侧的理由标签 */
+.research-toggle { display: flex; align-items: center; gap: 4px; font-size: var(--fs-md); line-height: 1.6; color: var(--ink); }
+.research-toggle b { font-weight: 600; }
+.research-toggle .lucide { color: var(--ink-3); transition: transform var(--t-fast) var(--ease); }
+.research-toggle[aria-expanded="true"] .lucide { transform: rotate(180deg); }
+.dropped { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; animation: fade var(--t-mid) var(--ease) both; }
+.dropped-row {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px;
+  padding: 4px 8px; margin: 0 -8px; border-radius: var(--r-sm); font-size: var(--fs-md); line-height: 1.55; color: var(--ink-3);
+  transition: background var(--t-fast);
+}
+.dropped-row:hover { background: var(--surface-hover); }
+.dropped-title { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dropped-why { height: 18px; padding: 0 6px; border-radius: var(--r-xs); font-size: var(--fs-sm); line-height: 18px; color: var(--ink-2); background: var(--surface-sunken); white-space: nowrap; }
+
 /* 读写对比：整条是读的量，强调色的一小段是写的量（至少 2px） */
 .written-bar { height: 4px; margin-top: 8px; border-radius: 999px; background: var(--line-strong); overflow: hidden; }
 .written-bar i { display: block; height: 100%; border-radius: inherit; background: var(--viz-accent); }

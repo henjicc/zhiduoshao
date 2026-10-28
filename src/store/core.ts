@@ -114,7 +114,7 @@ export function newNode(p: Partial<GNode> & Pick<GNode, "kind" | "q">): GNode {
   return {
     id: "n" + ++seq,
     dir: null, nextWhy: null, parent: null, links: [], op: null, instruction: null, children: [], collapsed: false, settled: false,
-    status: "idle", stage: null, stageDetail: null, images: [], imageNote: "", summary: "", framed: false, thinking: "", points: [], visual: null, memory: null, sources: [], queries: [], searchResults: 0, searches: [], steps: [], searchMs: 0, searchMode: null, compareOf: null, answeredAt: 0, since: null, detail: "", detailStatus: "idle", error: null, errorCode: null, errorHint: null,
+    status: "idle", stage: null, stageDetail: null, images: [], imageNote: "", summary: "", framed: false, thinking: "", points: [], visual: null, memory: null, sources: [], queries: [], searchResults: 0, searches: [], steps: [], dropped: [], searchMs: 0, searchMode: null, compareOf: null, answeredAt: 0, since: null, detail: "", detailStatus: "idle", error: null, errorCode: null, errorHint: null,
     dx: 0, dy: 0, ax: 0, ay: 0,
     ...p,
   };

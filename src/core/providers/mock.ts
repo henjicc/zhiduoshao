@@ -135,10 +135,12 @@ function respond(messages: ChatMessage[]) {
     const t = topicOf(questionOf(messages));
     // 复查：第 1 轮后认为不够、补搜一轮，之后就够了，便于开发时看到检索循环
     // 复查：第 1 轮后补搜一轮，第 2 轮后读两篇全文，读完就够了，便于开发时看到完整的检索循环
-    if (user.startsWith("全文读取结果")) return '{"action":"done"}';
+    // 够了的时候剔除几条：带理由的和只写序号的都有，便于开发时看到检索过程里的剔除列表
+    const done = JSON.stringify({ action: "done", drop: [{ id: 3, why: "内容农场" }, { id: 5, why: "重复" }, 6] });
+    if (user.startsWith("全文读取结果")) return done;
     if (isReview(user)) {
       if (user.startsWith("第 1 轮")) return JSON.stringify({ action: "search", missing: "缺少具体数据", queries: [{ q: `${t} 数据` }] });
-      return system.includes('"action":"read"') ? JSON.stringify({ action: "read", ids: [1, 2], reason: "摘要不够具体" }) : '{"action":"done"}';
+      return system.includes('"action":"read"') ? JSON.stringify({ action: "read", ids: [1, 2], reason: "摘要不够具体" }) : done;
     }
     return JSON.stringify({ action: "search", queries: [{ q: t, field: "news" }, { q: `${t} 最新`, time: "m1" }, { q: `${t} 官方说明`, site: "example.com" }] });
   }

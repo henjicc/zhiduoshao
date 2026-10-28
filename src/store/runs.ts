@@ -91,6 +91,8 @@ function applyEvent(map: string, id: string, ev: StreamEvent) {
       }));
     case "read":
       return patch((n) => ({ steps: [...n.steps, { kind: "read", titles: ev.titles, ok: ev.ok }] }));
+    case "dropped":
+      return patch((n) => ({ dropped: [...n.dropped, ...ev.sources] }));
     case "title":
       return patch(() => ({ q: ev.text }));
     case "summary":
@@ -135,6 +137,7 @@ function resetAnswer(id: string, keepQueries: boolean) {
     searchResults: keepQueries ? n.searchResults : 0,
     searches: keepQueries ? n.searches : [],
     steps: keepQueries ? n.steps : [],
+    dropped: keepQueries ? n.dropped : [],
     searchMs: keepQueries ? n.searchMs : 0,
     children: n.children.filter((c) => nodes[c]),
   };
@@ -168,7 +171,7 @@ export function runAnswer(id: string, more?: AnswerRequest["more"]) {
 export function runSynthesis(id: string, op: OpKind, instruction: string | undefined, linked: string[], retry = false) {
   if (retry) {
     release(detailKey(id));
-    patch(id, () => ({ status: "loading", error: null, errorCode: null, errorHint: null, thinking: "", summary: "", settled: false, points: [], visual: null, memory: null, sources: [], searchResults: 0, searches: [], steps: [], searchMs: 0, stage: null, detail: "", detailStatus: "idle" }));
+    patch(id, () => ({ status: "loading", error: null, errorCode: null, errorHint: null, thinking: "", summary: "", settled: false, points: [], visual: null, memory: null, sources: [], searchResults: 0, searches: [], steps: [], dropped: [], searchMs: 0, stage: null, detail: "", detailStatus: "idle" }));
   }
   const ctrl = claim(id);
   const map = mapOf();
