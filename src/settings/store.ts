@@ -20,7 +20,7 @@ export interface Settings {
   drawerWidth: number;
   /** 离开还在回答的地图时：每次询问、终止，或在后台继续 */
   onLeave: "ask" | "stop" | "background";
-  /** 明暗：跟随系统，或固定浅色 / 深色；写到 html 的 data-theme，令牌在 styles/tokens.css */
+  /** 明暗：深色（新用户默认）、浅色或跟随系统；写到 html 的 data-theme，令牌在 styles/tokens.css */
   theme: Theme;
   /** 配色方案：墨色为默认，其余见 PALETTES；写到 html 的 data-palette，令牌在 styles/tokens.css */
   palette: Palette;
@@ -67,7 +67,7 @@ interface SettingsState extends Settings {
 
 export const useSettings = create<SettingsState>()(
   persist(
-    (): SettingsState => ({ searchKey: "", llmKey: "", model: DEFAULT_MAIN_MODEL, autoCollapse: false, autoDetail: false, openSource: "browser", drawerWidth: DRAWER_DEFAULT, onLeave: "background", theme: "system", palette: "ink", petals: true, prefs: DEFAULT_PREFS, open: false }),
+    (): SettingsState => ({ searchKey: "", llmKey: "", model: DEFAULT_MAIN_MODEL, autoCollapse: false, autoDetail: false, openSource: "browser", drawerWidth: DRAWER_DEFAULT, onLeave: "background", theme: "dark", palette: "ink", petals: true, prefs: DEFAULT_PREFS, open: false }),
     {
       name: "zds-settings",
       version: 3,
@@ -88,7 +88,8 @@ export const useSettings = create<SettingsState>()(
         const openSource = p.openSource === "reader" ? "reader" : "browser";
         const drawerWidth = typeof p.drawerWidth === "number" && Number.isFinite(p.drawerWidth) ? p.drawerWidth : DRAWER_DEFAULT;
         const onLeave = p.onLeave === "stop" || p.onLeave === "ask" ? p.onLeave : "background";
-        const theme = p.theme === "light" || p.theme === "dark" ? p.theme : "system";
+        // 新用户默认深色；存过设置的保持原样，存档里没有明暗（加这个选项之前存的）说明一直跟随系统
+        const theme = THEMES.some(([t]) => t === p.theme) ? p.theme! : persisted ? "system" : current.theme;
         const palette = PALETTES.some((x) => x.id === p.palette) ? p.palette! : "ink";
         const petals = p.petals !== false;
         return { ...current, ...p, model, openSource, drawerWidth, onLeave, theme, palette, petals, prefs: cleanPrefs(p.prefs) };
