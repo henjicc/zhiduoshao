@@ -113,3 +113,20 @@ test("漏写「数据：」时，结论下一行的卡片 JSON 也按卡片解�
     assert.equal(evs.filter((e) => e.type === "point").length, 1);
   }
 });
+
+const followupsOf = (evs: ReturnType<typeof run>) => evs.flatMap((e) => (e.type === "followup" ? [e.followup] : []));
+
+test("推荐先问：只认第一条追问的「｜先问：」，后面的去掉标记、不带理由；第一条没标就都不标", () => {
+  const out = "结论：好。\n追问：\n[原因] 为什么会这样？｜先问：根子在这\n[走势] 还会持续吗？|先问:也想先问\n[对比] 和去年比呢？\n";
+  for (const chunks of [[out], [...out]]) {
+    assert.deepEqual(followupsOf(run(chunks)), [
+      { dir: "原因", q: "为什么会这样？", why: "根子在这" },
+      { dir: "走势", q: "还会持续吗？" },
+      { dir: "对比", q: "和去年比呢？" },
+    ]);
+  }
+  assert.deepEqual(followupsOf(run(["结论：好。\n追问：\n[原因] 为什么？\n[走势] 会涨吗？｜先问：关键\n"])), [
+    { dir: "原因", q: "为什么？" },
+    { dir: "走势", q: "会涨吗？" },
+  ]);
+});

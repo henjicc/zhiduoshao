@@ -15,6 +15,8 @@ export interface GNode {
   /** question：只有标题、尚未检索的延伸问题；answer：已提问的节点 */
   kind: "answer" | "question";
   dir: Direction | null;
+  /** 延伸问题：回答推荐先问这一条时的理由（半句话），其余为 null */
+  nextWhy: string | null;
   q: string;
   parent: string | null;
   /** 综合节点由哪些节点生成 */

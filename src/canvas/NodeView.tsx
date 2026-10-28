@@ -2,7 +2,7 @@ import { ArrowRight, Brain, ChevronsRight, LoaderCircle, Minus, PanelRightOpen, 
 import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { history } from "../history/store.ts";
 import { slotKey } from "./layout.ts";
-import { CiteNode, CiteText, Cites, SourceIcon, SourceStack } from "../components/common.tsx";
+import { CiteNode, CiteText, Cites, NextWhy, SourceIcon, SourceStack } from "../components/common.tsx";
 import { ScrollThumb } from "../components/ScrollThumb.tsx";
 import { ThinkingStream } from "../components/ThinkingStream.tsx";
 import { splitPhrases, usePhraseReveal, useStagger, type Phrase } from "../components/smoothText.ts";
@@ -265,9 +265,12 @@ function countDescendants(nodes: Record<string, GNode>, id: string): number {
 
 function QuestionPill({ n }: { n: GNode }) {
   return (
-    <button type="button" className="pill" onClick={(e) => { if (e.detail === 0) actions.ask(n.id); }}>
+    <button type="button" className={`pill${n.nextWhy ? " is-next" : ""}`} onClick={(e) => { if (e.detail === 0) actions.ask(n.id); }}>
       <span className="pill-dir">{n.dir === "追问" ? <ChevronsRight size={12} /> : n.dir}</span>
-      <span className="pill-q">{n.q}</span>
+      <span className="pill-body">
+        <span className="pill-q">{n.q}</span>
+        {n.nextWhy && <NextWhy why={n.nextWhy} replayId={`next-${n.id}`} />}
+      </span>
       <ArrowRight className="pill-go" size={14} strokeWidth={1.6} />
     </button>
   );

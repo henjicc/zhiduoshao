@@ -133,7 +133,11 @@ button.source { width: 100%; text-align: left; }
 }
 .followup:hover { background: var(--surface-hover); color: var(--ink); }
 .followup .pill-dir { width: 40px; }
-.followup span:last-child { flex: 1; }
+.followup > span:last-child { flex: 1; }
+.followup-body { display: grid; gap: 2px; }
+/* 推荐先问：「先问」用图表强调色，理由用次要墨色（不用更淡的 ink-3，太淡看不清） */
+.next-why { display: flex; gap: 6px; font-size: var(--fs-sm); line-height: 1.5; color: var(--ink-2); }
+.next-why-label { flex: none; font-weight: 600; color: var(--viz-accent); }
 
 .drawer-ask {
   display: flex; align-items: center; gap: 8px;

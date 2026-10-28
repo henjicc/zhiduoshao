@@ -7,6 +7,7 @@ import type { StreamEvent, Visual } from "./protocol.ts";
 //   要点：
 //   - 要点 [1][2]
 //   追问：
+//   [方向] 问题｜先问：理由（只有第一条可以带）
 //   [方向] 问题
 
 type Mode = "start" | "title" | "summary" | "visual" | "skip" | "points" | "followups";
@@ -15,6 +16,8 @@ type Out = Extract<StreamEvent, { type: "title" | "summary" | "visual" | "point"
 const CITE = /\[(\d{1,2})\]/g;
 const LABEL = /^(标题|结论|数据|要点|追问)[：:]\s*/;
 const NONE = /^[（(]?(无|没有|暂无)[)）。.]?$/;
+/** 追问后面的「｜先问：理由」 */
+const NEXT = /\s*[｜|]\s*先问\s*[：:]\s*(.*)$/;
 const NEXT_LABELS = ["数据：", "数据:", "要点：", "要点:", "追问：", "追问:"];
 
 export function extractCites(text: string, max: number) {
@@ -108,6 +111,8 @@ export class AnswerParser {
   private title = "";
   /** 卡片 JSON 可能被模型拆成多行，攒到能解析或下一个标签出现为止 */
   private visual = "";
+  /** 已经发出的追问条数 */
+  private followups = 0;
 
   constructor(private readonly sourceCount: number) {}
 
@@ -202,11 +207,17 @@ export class AnswerParser {
     } else if (this.mode === "followups") {
       const m = /^[-*•·]?\s*[[【]([^\]】]+)[\]】]\s*(.+)$/.exec(raw);
       const dirRaw = m?.[1].trim() ?? "";
-      const q = (m?.[2] ?? raw.replace(/^[-*•·]\s*/, "")).trim();
+      let q = (m?.[2] ?? raw.replace(/^[-*•·]\s*/, "")).trim();
       // 标签由模型自拟，过长视为不规范，用通用标签兜底
       const dir = dirRaw && dirRaw.length <= 6 ? dirRaw : "延伸";
+      // 推荐先问只认第一条；后面的条目也写了就去掉标记，不显示理由
+      const next = NEXT.exec(q);
+      if (next) q = q.slice(0, next.index).trim();
+      const why = next && !this.followups ? next[1].trim() : "";
       // 「追问：无」表示模型认为不需要再扩散
-      if (q && !NONE.test(q)) out.push({ type: "followup", followup: { dir, q } });
+      if (!q || NONE.test(q)) return;
+      this.followups++;
+      out.push({ type: "followup", followup: why ? { dir, q, why } : { dir, q } });
     }
   }
 

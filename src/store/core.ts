@@ -110,7 +110,7 @@ export function patch(id: string, fn: (n: GNode) => Partial<GNode>) {
 export function newNode(p: Partial<GNode> & Pick<GNode, "kind" | "q">): GNode {
   return {
     id: "n" + ++seq,
-    dir: null, parent: null, links: [], op: null, instruction: null, children: [], collapsed: false,
+    dir: null, nextWhy: null, parent: null, links: [], op: null, instruction: null, children: [], collapsed: false,
     status: "idle", stage: null, stageDetail: null, images: [], imageNote: "", summary: "", thinking: "", points: [], visual: null, memory: null, sources: [], queries: [], searchResults: 0, searches: [], steps: [], searchMs: 0, searchMode: null, compareOf: null, answeredAt: 0, since: null, detail: "", detailStatus: "idle", error: null, errorCode: null, errorHint: null,
     dx: 0, dy: 0, ax: 0, ay: 0,
     ...p,

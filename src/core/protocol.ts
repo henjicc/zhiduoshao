@@ -101,6 +101,8 @@ export type Visual =
 export interface Followup {
   dir: Direction;
   q: string;
+  /** 推荐先问这一条的理由（半句话）：只有回答的第一条追问可能带，模型没标就没有 */
+  why?: string;
 }
 
 /** 提供给编排层的已有节点上下文 */

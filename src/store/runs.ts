@@ -101,7 +101,7 @@ function applyEvent(map: string, id: string, ev: StreamEvent) {
       return patch(() => ({ status: "streaming", visual: ev.visual }));
     case "followup":
       recordAngle(ev.followup.dir, map, false);
-      return addAt(map, { kind: "question", dir: ev.followup.dir, q: ev.followup.q, parent: id });
+      return addAt(map, { kind: "question", dir: ev.followup.dir, q: ev.followup.q, nextWhy: ev.followup.why ?? null, parent: id });
     case "done":
       patch((n) => ({ status: "ready", stage: null, answeredAt: Date.now(), memory: n.memory && trimNote({ ...n.memory, sites: usedSites(n.memory, n.queries) }) }));
       if (mapOf() === map && get().activeId === id) revealBranch(id, true);

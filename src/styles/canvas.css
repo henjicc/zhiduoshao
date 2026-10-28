@@ -271,8 +271,12 @@
   transition: border-color var(--t-fast), background var(--t-fast);
 }
 .pill:hover { background: var(--surface); border-color: var(--line-hover); }
+/* 推荐先问的那一条：边框深一档，问句下面多一行「先问」和理由 */
+.pill.is-next { border-color: var(--line-strong); }
+.pill.is-next:hover { border-color: var(--line-hover); }
+.pill-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .pill-dir { flex: none; width: 40px; white-space: nowrap; padding-top: 1px; font: 500 var(--fs-sm)/1.5 var(--font-ui); color: var(--ink-4); }
-.pill-q { flex: 1; font-size: var(--fs-md); line-height: 1.55; color: var(--ink-2); }
+.pill-q { font-size: var(--fs-md); line-height: 1.55; color: var(--ink-2); }
 .pill:hover .pill-q { color: var(--ink); }
 .pill-go { margin-top: 2px; color: var(--ink-4); opacity: 0; transition: opacity var(--t-fast); }
 .pill:hover .pill-go, .pill:focus-visible .pill-go { opacity: 1; color: var(--accent); }

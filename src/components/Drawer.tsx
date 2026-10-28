@@ -3,7 +3,7 @@ import { SOURCES_CAP } from "../core/protocol.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { actions, isReady, newsSince, useGraph } from "../store/graph.ts";
 import type { GNode } from "../store/types.ts";
-import { CiteNode, Markdown, SourceItem } from "./common.tsx";
+import { CiteNode, Markdown, NextWhy, SourceItem } from "./common.tsx";
 import { Reader } from "./Reader.tsx";
 import { clampDrawer, DRAWER_DEFAULT, settingsActions, useSettings } from "../settings/store.ts";
 import { ThinkingStream } from "./ThinkingStream.tsx";
@@ -157,7 +157,11 @@ function DrawerBody({ n }: { n: GNode }) {
             <div className="followups">
               {questions.map((x) => (
                 <button key={x.id} type="button" className="followup" onClick={() => actions.ask(x.id)}>
-                  <span className="pill-dir">{x.dir}</span><span>{x.q}</span>
+                  <span className="pill-dir">{x.dir}</span>
+                  <span className="followup-body">
+                    <span>{x.q}</span>
+                    {x.nextWhy && <NextWhy why={x.nextWhy} replayId={`drawer-next-${x.id}`} />}
+                  </span>
                 </button>
               ))}
             </div>

@@ -73,6 +73,16 @@ export const CiteNode = createContext<string | null>(null);
  * 来源列表的一行：点击按设置用系统浏览器打开，或在侧边栏阅读视图里打开（需要 nodeId）；
  * 没有链接的权威卡片直接显示摘要。detail 时列出附件子链
  */
+/** 推荐先问的标记：「先问」两个字用图表强调色（墨色方案的主题色是灰，不够醒目），后面跟半句理由 */
+export function NextWhy({ why, replayId }: { why: string; replayId: string }) {
+  return (
+    <span className="next-why" data-replay-id={replayId}>
+      <span className="next-why-label">先问</span>
+      <span>{why}</span>
+    </span>
+  );
+}
+
 /** 并列的几项元信息（网站、时间、数量）：各自一段，用间距分开，不用分隔符号 */
 export function MetaParts({ items, className }: { items: ReactNode[]; className?: string }) {
   const xs = items.filter((x) => x !== null && x !== undefined && x !== false && x !== "");
