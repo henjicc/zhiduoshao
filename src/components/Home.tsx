@@ -12,12 +12,14 @@ import { HistoryButton, RecentList } from "./History.tsx";
 import { useHistory } from "../history/store.ts";
 import { drag, WindowControls } from "./TitleBar.tsx";
 import { Wordmark } from "./Wordmark.tsx";
+import { PlumMark, usePetals } from "./Plum.tsx";
 import "../styles/home.css";
 
 export function Home() {
   const [text, setText] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
   const file = useRef<HTMLInputElement>(null);
+  const mark = useRef<SVGSVGElement>(null);
   const att = useAttachments();
   const [drop, setDrop] = useState(false);
   const search = useGraph((s) => s.search);
@@ -33,6 +35,7 @@ export function Home() {
   }, [loaded, hasItems, empty]);
 
   useEffect(() => { if (empty !== null) ref.current?.focus(); }, [empty !== null]);
+  usePetals(mark, empty !== null);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -70,7 +73,7 @@ export function Home() {
         <WindowControls />
       </header>
       <div className="home-inner">
-        <h1 className="wordmark"><Wordmark /></h1>
+        <h1 className="wordmark"><PlumMark markRef={mark} /><Wordmark /></h1>
         <form
           className={`ask${drop ? " is-drop" : ""}`}
           onSubmit={(e) => { e.preventDefault(); submit(); }}

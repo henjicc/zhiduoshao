@@ -15,7 +15,15 @@
 .home.is-pending .home-inner { visibility: hidden; }
 
 /* 字标是图形，34px 只决定它的高度，不算文字字号 */
-.wordmark { margin: 0 0 28px; font-size: 34px; line-height: 1; text-align: center; }
+.wordmark { margin: 0 0 28px; font-size: 34px; line-height: 1; display: flex; justify-content: center; align-items: center; gap: 10px; }
+/* 花的视框四周留有花瓣投影的余量，负边距让花瓣本身与字标对齐，不撑高标题 */
+.plum-mark { width: 58px; height: 58px; margin: -12px 0; flex: none; }
+/* 落瓣层挂在 body 上（components/Plum.tsx）：首页时在内容之上、对话框之下；
+   离开首页后升到形变外壳之上，提问框形变成卡片的过程中花瓣继续飘，不被首页残影盖住 */
+.plum-petals { position: fixed; inset: 0; z-index: 20; pointer-events: none; overflow: hidden; }
+.plum-petals.is-released { z-index: 110; }
+.plum-petal { position: absolute; left: 0; top: 0; will-change: transform, opacity; }
+.plum-petal svg { display: block; width: 100%; height: 100%; overflow: visible; }
 
 /* 叠在最近列表之上，回答偏好的下拉弹层才不会被盖住 */
 .ask {
