@@ -196,44 +196,6 @@ button.source { width: 100%; text-align: left; }
 .summary-thinking .thinking-text { font-size: var(--fs-md); }
 .summary-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px 16px 28px; }
 
-/* ---------- 总结面板「当前路径」顶部的路径回看（PathReview.tsx）----------
-   起点与现在左右对照，中间一条细线，每走一步一个点，终点实心（和画布上问透的收尾记号同一种点）；
-   动效：起点淡入，线画过去、点依次出现，现在淡入，再逐条放出已经弄清的 */
-.review { display: grid; gap: 30px; margin-bottom: 44px; }
-.review-route { display: grid; grid-template-columns: minmax(0, 1fr) minmax(72px, 0.5fr) minmax(0, 1fr); align-items: center; gap: 20px; }
-.review-side { display: grid; gap: 4px; align-content: start; }
-.review-side.is-start { animation: fade var(--t-mid) var(--ease) both; }
-.review-side.is-now { animation: fade var(--t-mid) var(--ease) var(--t-reveal) both; }
-.review-label { font-size: var(--fs-sm); color: var(--ink-3); }
-.summary-body .review-q { margin: 0; font: 600 var(--fs-xl)/1.45 var(--font-ui); letter-spacing: 0.01em; color: var(--ink); }
-.review-track { position: relative; height: 24px; }
-.review-line { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.review-line line { stroke: var(--edge-active); stroke-width: 1; stroke-dasharray: 1; animation: draw var(--t-reveal) var(--ease) both; }
-.review-line .is-v { display: none; }
-/* 点外面留一圈透明的悬停区，悬停显示那一步的问题（全局 Tooltip） */
-.review-dot { position: absolute; top: 50%; left: calc(var(--at) * 100%); width: 16px; height: 16px; translate: -50% -50%; animation: fade var(--t-mid) var(--ease) calc(var(--t-reveal) * var(--at)) both; }
-.review-dot::before { content: ""; position: absolute; inset: 4.5px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--edge-active); }
-.review-dot.is-end::before { background: var(--edge-active); box-shadow: none; }
-.summary-body .review-block h4 { margin: 0 0 8px; }
-.summary-body .review-learned { margin: 0; }
-.review-learned li { animation: ph-opacity var(--t-reveal) var(--ease-soft) calc(var(--t-mid) * var(--i)) both; }
-.review-learned.is-after-route li { animation-delay: calc(var(--t-reveal) + var(--t-mid) * var(--i)); }
-.review-skeleton { gap: 12px; }
-.review-skeleton i { height: 12px; }
-.review-skeleton i:nth-child(2) { width: 82%; }
-.review-skeleton i:nth-child(3) { width: 64%; }
-@media (prefers-reduced-motion: reduce) {
-  .review :is(*, *::before) { animation-delay: 0s !important; }
-}
-@media (max-width: 720px) {
-  .review-route { grid-template-columns: 1fr; gap: 6px; }
-  .review-track { width: 16px; height: max(40px, calc(var(--steps) * 20px)); }
-  .review-line line:not(.is-v) { display: none; }
-  .review-line .is-v { display: inline; }
-  .review-dot { top: calc(var(--at) * 100%); left: 50%; }
-}
-.summary-actions { display: flex; gap: 8px; }
-
 /* ---------- 设置 ---------- */
 .dialog {
   position: relative; width: 100%; max-width: 520px; max-height: 100%;

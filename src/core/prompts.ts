@@ -365,26 +365,6 @@ ${THINK}
   ];
 }
 
-/** 路径回看「已经弄清的」：快模型、JSON 模式，由 format.ts 的 parseLearned 校验；序号是合并后的来源序号，和同一范围的总结一致 */
-export const REVIEW_MARK = "已经弄清的几件事";
-export function reviewPrompt(origin: string, nodes: NodeContext[]): ChatMessage[] {
-  const cites = (cs: number[]) => cs.map((c) => `[${c}]`).join("");
-  return [
-    {
-      role: "system",
-      content: `用户在知识地图上从一个起点出发，沿一条路径一层层问下来。根据路径上各层的回答，列出用户到现在${REVIEW_MARK}。
-- 3 到 5 条，按从起点到现在的顺序；每条一句话，不超过 28 字，写结论本身（事实、判断或该怎么做），不写“了解了”“弄清了”这类过程。
-- cites 写这条依据的来源序号，最多 2 个，只用节点里已经标出的序号；依据没有序号就写空数组。
-- 只用节点里有的信息，不要编造，各条不要重复。
-只输出 JSON：{"learned":[{"text":"一句话","cites":[1]}]}`,
-    },
-    {
-      role: "user",
-      content: `起点：${origin}\n\n路径（从起点到现在）：\n${nodes.map((n, i) => `${i + 1}. ${n.q}\n结论：${n.summary}\n${n.points.map((p) => "- " + p.text + cites(p.cites)).join("\n")}`).join("\n\n")}`,
-    },
-  ];
-}
-
 export function summaryPrompt(nodes: NodeContext[], sources: Source[]): ChatMessage[] {
   return [
     {

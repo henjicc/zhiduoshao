@@ -1,5 +1,5 @@
 import { framedAnswer, genericAnswer, genericSources, isMemoryTopic, isThought, MEMORY_ANSWERS, MEMORY_SOURCES, topicOf } from "./mock-data.ts";
-import { FRAME_MARK, REVIEW_MARK, VISION_MARK } from "../prompts.ts";
+import { FRAME_MARK, VISION_MARK } from "../prompts.ts";
 import { MEMORY_MARK } from "../../memory/consolidate.ts";
 import { textOf, type ChatMessage, type LLMProvider, type SearchProvider } from "./types.ts";
 import type { PageReader } from "./web.ts";
@@ -112,13 +112,6 @@ function memoryPlan(user: string) {
   return [...kept.filter((l) => l !== line), line].join("\n");
 }
 
-/** 示例的路径回看：每层取结论的第一句和第一条要点的角标 */
-function learnedJson(user: string) {
-  const nodes = parseNodes(user.split("路径（从起点到现在）：")[1] ?? "", /^\d+\.\s+(.+)$/);
-  const learned = nodes.slice(0, 5).map((n) => ({ text: stripCites(n.summary).split(/[，。；]/)[0], cites: [...n.cites.matchAll(/\d+/g)].map((m) => Number(m[0])).slice(0, 2) }));
-  return JSON.stringify({ learned });
-}
-
 /** 研究循环是同一段对话：第一条用户消息是问题（规划检索），之后的用户消息是每轮搜索结果（复查） */
 const isResearch = (system: string) => system.includes("搜索引擎查询词");
 const isReview = (user: string) => /第 \d+ 轮搜索结果/.test(user);
@@ -207,7 +200,6 @@ export function createMockLLM(): LLMProvider {
     async complete(messages, opts = {}) {
       await sleep(400, opts.signal);
       const system = textOf(messages[0].content);
-      if (system.includes(REVIEW_MARK)) return learnedJson(textOf(messages[1].content));
       return system.includes(MEMORY_MARK) ? memoryPlan(textOf(messages[1].content)) : "好";
     },
     async *stream(messages, opts = {}) {

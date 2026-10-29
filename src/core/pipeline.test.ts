@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { keepFullText, type NodeContext, type Source, type StreamEvent } from "./protocol.ts";
 import { textOf, type ChatMessage, type ContentPart, type LLMProvider } from "./providers/types.ts";
 import { parsePages, requestBody } from "./providers/yuanbao.ts";
-import { answer, mergeSources, review } from "./pipeline.ts";
+import { answer, mergeSources } from "./pipeline.ts";
 import { answerPrompt, READER_RULE, synthesizePrompt } from "./prompts.ts";
 import { parseDrop, parseRead, parseSearch, perQuery } from "./research.ts";
 import { command } from "./router.ts";
@@ -485,26 +485,4 @@ test("复查可以剔除来源：drop 的序号不交给写答案、带理由报
   assert.deepEqual(all.dropped, []);
   // 只写序号的不带理由；不认识的理由不显示；已有来源与越界的序号丢掉
   assert.deepEqual([...parseDrop({ drop: [1, 3, 3, 9, "x", { id: 4, why: "广告" }] }, 4, 2)], [[3, undefined], [4, undefined]]);
-});
-
-test("路径回看：快模型 JSON 模式一次调用，角标按合并后的来源序号校验", async () => {
-  const calls: { tier?: string; json?: boolean; messages: ChatMessage[] }[] = [];
-  const llm: LLMProvider = {
-    name: "fake",
-    async complete(messages, opts = {}) {
-      calls.push({ tier: opts.tier, json: opts.json, messages });
-      return '{"learned":[{"text":"a 的结论","cites":[1]},{"text":"b 的结论","cites":[3,4]}]}';
-    },
-    async *stream() {},
-  };
-  const nodes: NodeContext[] = [
-    { q: "起点", summary: "s", sources: [src("u1"), src("u2")], points: [{ text: "p", cites: [1] }] },
-    { q: "下一层", summary: "s", sources: [src("u2"), src("u3")], points: [{ text: "p", cites: [2] }] },
-  ];
-  const events = await collect(review({ llm, search: null, log: () => {} }, { origin: "起点原话", nodes }, new AbortController().signal));
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].tier, "fast");
-  assert.equal(calls[0].json, true);
-  assert.match(textOf(calls[0].messages[1].content), /起点：起点原话[\s\S]*2\. 下一层[\s\S]*- p\[3\]/);
-  assert.deepEqual(events.find((e) => e.type === "learned"), { type: "learned", items: [{ text: "a 的结论", cites: [1] }, { text: "b 的结论", cites: [3] }] });
 });

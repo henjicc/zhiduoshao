@@ -3,11 +3,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Source, SummaryRequest } from "../core/protocol.ts";
 import { api } from "../api/client.ts";
 import { actions, chain, isReady, toContext, useGraph } from "../store/graph.ts";
-import { fileName, reviewMd } from "../lib/export.ts";
+import { fileName } from "../lib/export.ts";
 import { copyText, saveMarkdown } from "../lib/save.ts";
 import type { GNode } from "../store/types.ts";
 import { Markdown, SourceItem } from "./common.tsx";
-import { PathReview, unopened, type Learning } from "./PathReview.tsx";
 import { usePresence } from "./presence.ts";
 import { ThinkingStream } from "./ThinkingStream.tsx";
 
@@ -29,34 +28,6 @@ function scopeNodes(scope: Scope, nodes: Record<string, GNode>, activeId: string
 
 interface Result { text: string; thinking: string; sources: Source[]; status: "loading" | "streaming" | "ready" | "error"; error?: string }
 
-/** 路径回看「已经弄清的」：只缓存在内存里、不存档；同一条路径内容没变时重新打开面板不再调用模型。
- * 键带地图 id 与每个节点的回答时间：节点编号每张地图都从 n1 起，重新回答后结论字数也可能不变 */
-const learnedCache = new Map<string, Learning>();
-const NO_LEARNED: Learning["items"] = [];
-
-function useLearned(list: GNode[], on: boolean) {
-  const mapId = useGraph((s) => s.map?.id ?? "");
-  const key = `${mapId}|${list.map((n) => `${n.id}:${n.answeredAt}:${n.summary.length}`).join(",")}`;
-  const [state, setState] = useState<{ key: string; value: Learning } | null>(null);
-  useEffect(() => {
-    if (!on || !list.length || learnedCache.has(key)) return;
-    const ctrl = new AbortController();
-    let acc: Learning = { status: "loading", items: [], sources: [] };
-    setState({ key, value: acc });
-    void api.review({ origin: list[0].q, nodes: list.map(toContext) }, (ev) => {
-      if (ev.type === "sources") acc = { ...acc, sources: ev.sources };
-      else if (ev.type === "learned") learnedCache.set(key, (acc = { ...acc, status: "ready", items: ev.items }));
-      else if (ev.type === "error") acc = { ...acc, status: "error" };
-      else return;
-      setState({ key, value: acc });
-    }, ctrl.signal);
-    return () => ctrl.abort();
-  }, [key, on]);
-  // 缓存里有的在这一次渲染就给出，路径回看一挂载就知道要等对照的线画完再放出
-  if (!on || !list.length) return null;
-  return learnedCache.get(key) ?? (state?.key === key ? state.value : null);
-}
-
 export function SummarySheet() {
   const open = useGraph((s) => s.summaryOpen);
   const p = usePresence(open);
@@ -68,7 +39,7 @@ function Sheet({ closing }: { closing: boolean }) {
   const activeId = useGraph((s) => s.activeId);
   const selected = useGraph((s) => s.selected);
   const hasSelection = selected.filter((id) => isReady(nodes[id])).length > 0;
-  // 有选中节点时总结选中的；路径走到两层以上默认总结当前路径，顶部是路径回看；否则整张图
+  // 有选中节点时总结选中的；路径走到两层以上默认总结当前路径；否则整张图
   const [scope, setScope] = useState<Scope>(() => (hasSelection ? "selection" : scopeNodes("path", nodes, activeId, selected).length >= 2 ? "path" : "all"));
   const [result, setResult] = useState<Result | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -77,10 +48,6 @@ function Sheet({ closing }: { closing: boolean }) {
   const list = useMemo(() => scopeNodes(scope, nodes, activeId, selected), [scope, nodes, activeId, selected]);
   // 节点内容不变时复用上次的总结，避免重复调用模型
   const key = `${scope}:${list.map((n) => n.id + ":" + n.summary.length).join(",")}`;
-  const isPath = scope === "path" && list.length > 0;
-  const learned = useLearned(list, isPath);
-  const learnedItems = learned?.status === "ready" ? learned.items : NO_LEARNED;
-  const more = useMemo(() => (isPath ? unopened(list, nodes) : []), [isPath, list, nodes]);
 
   useEffect(() => {
     if (!list.length) { setResult(null); return; }
@@ -101,22 +68,18 @@ function Sheet({ closing }: { closing: boolean }) {
     return () => ctrl.abort();
   }, [key, attempt]);
 
-  // 只列出正文与路径回看实际引用的来源，序号保持与角标一致（两边都按 mergeSources 合并同一组节点的来源）
+  // 只列出正文实际引用的来源，序号保持与角标一致
   const cited = useMemo(() => {
     if (!result) return [];
-    const used = new Set([...[...result.text.matchAll(/\[(\d{1,2})\]/g)].map((m) => Number(m[1])), ...learnedItems.flatMap((x) => x.cites)]);
+    const used = new Set([...result.text.matchAll(/\[(\d{1,2})\]/g)].map((m) => Number(m[1])));
     return result.sources.map((s, i) => ({ s, i })).filter(({ i }) => used.has(i + 1));
-  }, [result, learnedItems]);
+  }, [result]);
 
-  /** 总结正文加上实际引用的来源列表：复制和下载用同一份 Markdown。当前路径时路径回看放在总结标题之后、正文之前 */
+  /** 总结正文加上实际引用的来源列表：复制和下载用同一份 Markdown */
   const markdown = () => {
     if (!result) return "";
     const refs = cited.map(({ s, i }) => `${i + 1}. ${s.url ? `[${s.title}](${s.url})` : `${s.title}（权威卡片，无链接）`}（${s.site}）`).join("\n");
-    const doc = result.text.trim();
-    const review = isPath ? reviewMd(list, learnedItems, more) : "";
-    const h1 = /^#\s+.+$/m.exec(doc);
-    const body = !review ? doc : h1 ? `${h1[0]}\n\n${review}\n\n${doc.replace(h1[0], "").trim()}` : `${review}\n\n${doc}`;
-    return body + (refs ? `\n\n## 来源\n\n${refs}\n` : "\n");
+    return result.text.trim() + (refs ? `\n\n## 来源\n\n${refs}\n` : "\n");
   };
   /** 下载的文件名取总结的标题（第一行「# 标题」） */
   const title = () => result?.text.match(/^#\s+(.+)$/m)?.[1].trim() ?? "知多少总结";
@@ -140,7 +103,6 @@ function Sheet({ closing }: { closing: boolean }) {
           </button>
         </header>
         <article className="summary-body" aria-live="polite" aria-busy={result?.status === "loading" || result?.status === "streaming"}>
-          {isPath && <PathReview list={list} learned={learned} more={more} sources={learned?.sources ?? []} />}
           {!list.length ? (
             <p className="summary-empty">这个范围里还没有已完成的回答</p>
           ) : result?.status === "error" ? (
