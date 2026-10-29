@@ -383,7 +383,7 @@ function dropTargetAt(x: number, y: number, dragging: Record<string, unknown>): 
 
 /** 按住 Ctrl / ⌘ 点击回答节点：逐个加选或取消，不相邻的节点也能一起选；Shift 留给框选 */
 function onNodeClick(id: string, e: { ctrlKey: boolean; metaKey: boolean }) {
-  const { nodes, activeId, selected } = useGraph.getState();
+  const { nodes, selected } = useGraph.getState();
   const n = nodes[id];
   if (e.ctrlKey || e.metaKey) {
     if (n.kind === "answer") actions.toggleSelected(id);
@@ -391,9 +391,9 @@ function onNodeClick(id: string, e: { ctrlKey: boolean; metaKey: boolean }) {
   }
   if (selected.length) actions.setSelected([]);
   if (n.kind === "question") return actions.ask(id);
-  // 第一次点击：激活并展开要点；再次点击：打开详情
-  if (id === activeId && n.status !== "loading") actions.openDrawer(id);
-  else actions.activate(id);
+  // 点一下就激活并打开详情；还在检索、思考的节点只激活
+  if (n.status === "loading") actions.activate(id);
+  else actions.openDrawer(id);
 }
 
 function onCardKey(e: React.KeyboardEvent) {

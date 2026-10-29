@@ -4,7 +4,7 @@ import { Canvas, useCrumbs } from "../canvas/Canvas.tsx";
 import { short } from "../lib/format.ts";
 import { screenTransition, swapScreen } from "../lib/transition.ts";
 import { useHistory } from "../history/store.ts";
-import { clampDrawer, settingsActions, useSettings } from "../settings/store.ts";
+import { drawerCss, settingsActions, useSettings } from "../settings/store.ts";
 import { actions, fit, isReady, useGraph, zoomAt } from "../store/graph.ts";
 import { CitePopover } from "./CitePopover.tsx";
 import { CommandPalette } from "./CommandPalette.tsx";
@@ -68,7 +68,7 @@ function ZoomControls() {
 }
 
 export function Workspace() {
-  const drawerWidth = useSettings((s) => s.drawerWidth);
+  const drawerRatio = useSettings((s) => s.drawerRatio);
   const drawer = useGraph((s) => !!s.drawerId);
 
   useEffect(() => {
@@ -98,7 +98,7 @@ export function Workspace() {
   });
 
   return (
-    <div className={`workspace ${intro}${drawer ? " has-drawer" : ""}`} style={{ "--drawer-w": `${clampDrawer(drawerWidth)}px` } as React.CSSProperties}>
+    <div className={`workspace ${intro}${drawer ? " has-drawer" : ""}`} style={{ "--drawer-w": drawerCss(drawerRatio) } as React.CSSProperties}>
       <Topbar />
       <Canvas />
       <CommandPalette />

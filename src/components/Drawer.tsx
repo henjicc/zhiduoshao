@@ -5,7 +5,7 @@ import { actions, isReady, newsSince, useGraph } from "../store/graph.ts";
 import type { GNode } from "../store/types.ts";
 import { CiteNode, Markdown, SourceItem } from "./common.tsx";
 import { Reader } from "./Reader.tsx";
-import { clampDrawer, DRAWER_DEFAULT, settingsActions, useSettings } from "../settings/store.ts";
+import { DRAWER_RATIO, drawerRatioAt, settingsActions, useSettings } from "../settings/store.ts";
 import { ThinkingStream } from "./ThinkingStream.tsx";
 import { recordDetail } from "../memory/store.ts";
 import { SearchLogSection } from "./SearchLog.tsx";
@@ -42,7 +42,7 @@ function ResizeHandle() {
     const el = e.currentTarget;
     el.setPointerCapture(e.pointerId);
     document.documentElement.classList.add("is-resizing");
-    const move = (ev: PointerEvent) => settingsActions.update({ drawerWidth: clampDrawer(innerWidth - ev.clientX) });
+    const move = (ev: PointerEvent) => settingsActions.update({ drawerRatio: drawerRatioAt(innerWidth - ev.clientX) });
     const up = () => {
       el.removeEventListener("pointermove", move);
       el.removeEventListener("pointerup", up);
@@ -60,7 +60,7 @@ function ResizeHandle() {
       aria-orientation="vertical"
       aria-label="拖动调整侧边栏宽度，双击恢复默认"
       onPointerDown={onPointerDown}
-      onDoubleClick={() => settingsActions.update({ drawerWidth: DRAWER_DEFAULT })}
+      onDoubleClick={() => settingsActions.update({ drawerRatio: DRAWER_RATIO })}
     />
   );
 }

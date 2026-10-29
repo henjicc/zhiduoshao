@@ -45,6 +45,8 @@
 @media (max-width: 720px) {
   /* 窄窗口时侧边栏占满，覆盖 Workspace 上按设置写入的宽度 */
   .workspace { --drawer-w: 100% !important; }
+  /* 占满时没有可拖的边，拖了会把占满记成设置里的比例 */
+  .drawer-resize { display: none; }
   .topbar { padding: 0 8px 0 10px; gap: 8px; }
   .crumb { max-width: 120px; }
   .topbar-actions .toggle-label, .topbar-actions .btn-label {

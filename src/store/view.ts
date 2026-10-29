@@ -1,5 +1,5 @@
 import { bounds, COL_GAP } from "../canvas/layout.ts";
-import { clampDrawer, useSettings } from "../settings/store.ts";
+import { drawerPx, useSettings } from "../settings/store.ts";
 import { commitNodes, focusOf, get, set, type View } from "./core.ts";
 
 // 视角与焦点：缩放、平移、让节点进入视野、切换当前节点。
@@ -12,7 +12,7 @@ const NARROW = 720;
 /** 画布上可用于摆放节点的屏幕区域（去掉顶栏、详情抽屉与底部缩放条） */
 export function viewport() {
   const { drawerId } = get();
-  const drawer = drawerId && innerWidth > NARROW ? clampDrawer(useSettings.getState().drawerWidth) : 0;
+  const drawer = drawerId && innerWidth > NARROW ? drawerPx(useSettings.getState().drawerRatio) : 0;
   return { l: 24, t: TOPBAR_H + 24, r: innerWidth - drawer - 24, b: innerHeight - 72 };
 }
 

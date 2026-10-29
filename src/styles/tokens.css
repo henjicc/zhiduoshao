@@ -102,7 +102,6 @@
 
   --topbar-h: 52px;
   --titlebar-h: 40px;
-  --drawer-w: 420px;
   --card-w: 380px;
   /* 回答卡片内容区的最大高度，超出在卡片里滚动 */
   --card-max-h: 600px;

@@ -17,8 +17,8 @@ export interface Settings {
   autoDetail: boolean;
   /** 点击来源时：用系统默认浏览器打开，或在侧边栏的阅读视图里打开 */
   openSource: "browser" | "reader";
-  /** 侧边栏宽度（像素），拖动左边缘调整 */
-  drawerWidth: number;
+  /** 侧边栏宽度占窗口宽度的比例，拖动左边缘调整；记比例而不是像素，窗口变宽变窄时侧边栏跟着变 */
+  drawerRatio: number;
   /** 离开还在回答的地图时：每次询问、终止，或在后台继续 */
   onLeave: "ask" | "stop" | "background";
   /** 明暗：深色（新用户默认）、浅色或跟随系统；写到 html 的 data-theme，令牌在 styles/tokens.css */
@@ -57,10 +57,17 @@ export type Palette = (typeof PALETTES)[number]["id"];
 export const THEMES = [["system", "跟随系统"], ["light", "浅色"], ["dark", "深色"]] as const;
 export type Theme = (typeof THEMES)[number][0];
 
-export const DRAWER_MIN = 360;
-export const DRAWER_DEFAULT = 420;
+const DRAWER_MIN = 360;
 /** 侧边栏最宽不超过窗口的 60%，给画布留出位置 */
-export const clampDrawer = (w: number) => Math.round(Math.max(DRAWER_MIN, Math.min(w, Math.max(DRAWER_MIN, innerWidth * 0.6))));
+const DRAWER_MAX_RATIO = 0.6;
+export const DRAWER_RATIO = 0.3;
+const clampRatio = (r: number) => Math.min(DRAWER_MAX_RATIO, Math.max(0, r));
+/** 侧边栏当前的像素宽度：按比例算，不窄于 360 */
+export const drawerPx = (ratio: number) => Math.round(Math.max(DRAWER_MIN, clampRatio(ratio) * innerWidth));
+/** 与 drawerPx 同一规则的 CSS 宽度，窗口缩放时由浏览器直接重算 */
+export const drawerCss = (ratio: number) => `max(${DRAWER_MIN}px, ${clampRatio(ratio) * 100}vw)`;
+/** 拖动边缘到距窗口右边 px 像素时的比例；360 的下限只在显示时保证，记下的比例不受当前窗口宽度抬高 */
+export const drawerRatioAt = (px: number) => clampRatio(px / innerWidth);
 
 interface SettingsState extends Settings {
   open: boolean;
@@ -68,7 +75,7 @@ interface SettingsState extends Settings {
 
 export const useSettings = create<SettingsState>()(
   persist(
-    (): SettingsState => ({ searchKey: "", llmKey: "", model: DEFAULT_MAIN_MODEL, autoCollapse: false, autoDetail: false, openSource: "browser", drawerWidth: DRAWER_DEFAULT, onLeave: "background", theme: "dark", palette: "ink", petals: true, prefs: DEFAULT_PREFS, open: false }),
+    (): SettingsState => ({ searchKey: "", llmKey: "", model: DEFAULT_MAIN_MODEL, autoCollapse: false, autoDetail: false, openSource: "browser", drawerRatio: DRAWER_RATIO, onLeave: "background", theme: "dark", palette: "ink", petals: true, prefs: DEFAULT_PREFS, open: false }),
     {
       name: "zds-settings",
       version: 3,
@@ -81,19 +88,19 @@ export const useSettings = create<SettingsState>()(
         return s as SettingsState;
       },
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ searchKey, llmKey, model, autoCollapse, autoDetail, openSource, drawerWidth, onLeave, theme, palette, petals, prefs }) => ({ searchKey, llmKey, model, autoCollapse, autoDetail, openSource, drawerWidth, onLeave, theme, palette, petals, prefs }),
+      partialize: ({ searchKey, llmKey, model, autoCollapse, autoDetail, openSource, drawerRatio, onLeave, theme, palette, petals, prefs }) => ({ searchKey, llmKey, model, autoCollapse, autoDetail, openSource, drawerRatio, onLeave, theme, palette, petals, prefs }),
       // 已下线或在设置页隐藏的模型回到默认值（2026-10 起混元隐藏，统一用 DeepSeek Flash）
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<Settings>;
         const model = VISIBLE_MODELS.some((m) => m.id === p.model) ? p.model! : DEFAULT_MAIN_MODEL;
         const openSource = p.openSource === "reader" ? "reader" : "browser";
-        const drawerWidth = typeof p.drawerWidth === "number" && Number.isFinite(p.drawerWidth) ? p.drawerWidth : DRAWER_DEFAULT;
+        const drawerRatio = typeof p.drawerRatio === "number" && p.drawerRatio >= 0 && p.drawerRatio <= 1 ? p.drawerRatio : DRAWER_RATIO;
         const onLeave = p.onLeave === "stop" || p.onLeave === "ask" ? p.onLeave : "background";
         // 新用户默认深色；存过设置的保持原样，存档里没有明暗（加这个选项之前存的）说明一直跟随系统
         const theme = THEMES.some(([t]) => t === p.theme) ? p.theme! : persisted ? "system" : current.theme;
         const palette = PALETTES.some((x) => x.id === p.palette) ? p.palette! : "ink";
         const petals = p.petals !== false;
-        return { ...current, ...p, model, openSource, drawerWidth, onLeave, theme, palette, petals, prefs: cleanPrefs(p.prefs) };
+        return { ...current, ...p, model, openSource, drawerRatio, onLeave, theme, palette, petals, prefs: cleanPrefs(p.prefs) };
       },
     },
   ),
