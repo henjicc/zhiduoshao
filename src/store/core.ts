@@ -94,6 +94,24 @@ export function setSpine(id: string) {
   commitNodes(dy ? { ...nodes, [root.id]: { ...root, ay: root.ay - dy } } : nodes, { spineId: id });
 }
 
+/** 节点回报测量到的尺寸（head：卡片上方问题行的高度）并重新布局 */
+export function setSize(id: string, w: number, h: number, head = 0) {
+  const { nodes, sizes, spineId } = get();
+  const cur = sizes[id];
+  if (cur && cur.w === w && cur.h === h && (cur.head ?? 0) === head) return;
+  const next = { ...sizes, [id]: head ? { w, h, head } : { w, h } };
+  // 主线按卡片顶边对齐，主线节点的问题行一变高（延伸问题刚点开变成回答卡片），整个节点会被往上提、问题文字跳走。
+  // 和 setSpine 一样平移整棵树补回来，让被点的节点留在原处；根节点的锚点本来就是节点左上角，不用补。
+  // 第一次测量的节点还没在旧位置显示过（打开地图、新建的追问），没有原处要保，不补
+  const dh = head - (cur?.head ?? 0);
+  if (cur && dh && id === spineId && nodes[id]?.parent) {
+    const root = chain(nodes, id)[0];
+    commitNodes({ ...nodes, [root.id]: { ...root, ay: root.ay + dh } }, { sizes: next });
+    return;
+  }
+  commitNodes(nodes, { sizes: next });
+}
+
 /** 打开地图时的主线：最近回答完成的节点（综合节点自成一棵树，不算） */
 export function latestAnswered(nodes: Record<string, GNode>) {
   let best: GNode | null = null;

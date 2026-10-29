@@ -145,3 +145,19 @@ test("收尾记号跟着子列一起避让：问透的兄弟贴着上一个兄�
   assert.equal(pos.b.y, 200 + ROW_GAP);
   assert.equal(ends.b.y, pos.a6.y + q.h + ROW_GAP);
 });
+
+test("卡片上方问题行高度不同时，主线按卡片顶边对齐，下一个兄弟连同问题行排在上一张卡片下方", () => {
+  const nodes = {
+    r: node({ id: "r", ay: 100, children: ["a", "b"] }),
+    a: node({ id: "a", parent: "r", children: ["q"] }),
+    b: node({ id: "b", parent: "r" }),
+    q: node({ id: "q", kind: "question", parent: "a" }),
+  };
+  const sizes = { r: { w: 380, h: 200, head: 48 }, a: { w: 380, h: 150, head: 28 }, b: { w: 380, h: 120, head: 28 }, q: { w: 380, h: 44 } };
+  const { pos } = layout(nodes, sizes, null, "a");
+  assert.equal(pos.r.y, 100, "根的锚点仍是节点左上角");
+  const cardTop = (id: keyof typeof pos) => pos[id].y + (pos[id].head ?? 0);
+  assert.equal(cardTop("a"), cardTop("r"));
+  assert.equal(pos.q.y, cardTop("a"), "延伸问题与父卡片顶边对齐");
+  assert.equal(pos.b.y, pos.a.y + 150 + ROW_GAP, "问题行算在节点占地里，不压住上一张卡片");
+});

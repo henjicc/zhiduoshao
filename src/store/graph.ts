@@ -1,7 +1,7 @@
 import type { OpKind } from "../core/protocol.ts";
 import { layout } from "../canvas/layout.ts";
 import { maxSeq, restoreNodes, rootOf, type MapRecord } from "../history/snapshot.ts";
-import { addNode, chain, commitNodes, focusOf, get, initial, isReady, latestAnswered, newNode, newsSince, park, parked, patch, resetSeq, set, setSpine, slotParent, unpark } from "./core.ts";
+import { addNode, chain, commitNodes, setSize, focusOf, get, initial, isReady, latestAnswered, newNode, newsSince, park, parked, patch, resetSeq, set, setSpine, slotParent, unpark } from "./core.ts";
 import { cancelMap, isDetailRunning, runAnswer, runCommand, runDetail, runningCount, runSynthesis } from "./runs.ts";
 import { activate, freeAt, freeSpot, revealBranch, startView } from "./view.ts";
 import { recordAngle, recordSite } from "../memory/store.ts";
@@ -217,10 +217,8 @@ export const actions = {
     commitNodes(nodes);
   },
 
-  setSize(id: string, w: number, h: number) {
-    const cur = get().sizes[id];
-    if (cur && cur.w === w && cur.h === h) return;
-    commitNodes(get().nodes, { sizes: { ...get().sizes, [id]: { w, h } } });
+  setSize(id: string, w: number, h: number, head = 0) {
+    setSize(id, w, h, head);
   },
 
   /** 详情抽屉打开已完成的节点时调用：没有详解就生成；force 用于失败后重试或重新生成 */

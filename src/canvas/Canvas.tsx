@@ -57,12 +57,11 @@ type Drag =
   /** 在卡片正文上按下：交给浏览器选择文字，没拖动、也没选中文字时按点击处理 */
   | { type: "text"; sx: number; sy: number; id: string; moved: boolean };
 
-/** 卡片上能拖动整个节点的区域：标题行（问题）与上方的标签、附图；其余正文可以选中复制 */
-const DRAG_HANDLE = ".card-q, .card-tag, .card-images";
-
 /** 多选时按选中顺序把节点用虚线串起来：从前一个节点的中心连到后一个的中心，线压在卡片下面，只在卡片之间的空隙露出来 */
 function selectionPath(a: Box, b: Box) {
-  const x1 = a.x + a.w / 2, y1 = a.y + Math.min(a.h / 2, 60), x2 = b.x + b.w / 2, y2 = b.y + Math.min(b.h / 2, 60);
+  // 纵向取卡片本身（不含上方问题行）的中部
+  const mid = (n: Box) => n.y + (n.head ?? 0) + Math.min((n.h - (n.head ?? 0)) / 2, 60);
+  const x1 = a.x + a.w / 2, y1 = mid(a), x2 = b.x + b.w / 2, y2 = mid(b);
   const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - Math.min(80, Math.hypot(x2 - x1, y2 - y1) / 6);
   return `M${x1},${y1} Q${mx},${my} ${x2},${y2}`;
 }
@@ -205,8 +204,9 @@ export function Canvas() {
     if (target.closest(".ctx-menu, .ctx-ask")) return; // 右键菜单经 portal 渲染，React 事件仍会冒泡到这里
     const nodeEl = target.closest<HTMLElement>(".node");
     const { selected, nodes, view: v } = useGraph.getState();
+    // 卡片里是回答正文，可以选中复制；拖动节点用卡片上方的问题行（加载中的卡片没有可选的字，整张都能拖）
     const card = target.closest(".card");
-    if (nodeEl && e.button === 0 && card && !card.classList.contains("is-loading") && !target.closest(DRAG_HANDLE) && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    if (nodeEl && e.button === 0 && card && !card.classList.contains("is-loading") && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
       drag.current = { type: "text", sx: e.clientX, sy: e.clientY, id: nodeEl.dataset.id!, moved: false };
       return;
     }

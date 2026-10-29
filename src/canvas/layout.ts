@@ -4,8 +4,9 @@ export const COL_GAP = 72;
 export const ROW_GAP = 16;
 const DEFAULT = { answer: { w: 380, h: 140 }, question: { w: 380, h: 44 } };
 
-export interface Box { x: number; y: number; w: number; h: number }
-export type Sizes = Record<string, { w: number; h: number }>;
+/** head：回答节点里卡片上方问题行的高度，连线对齐卡片本身而不是问题行 */
+export interface Box { x: number; y: number; w: number; h: number; head?: number }
+export type Sizes = Record<string, { w: number; h: number; head?: number }>;
 /** 延伸列表底部的输入框：不是节点，只占一个子位置 */
 export interface Slot { parent: string; box: Box }
 export const slotKey = (parent: string) => `ask:${parent}`;
@@ -24,6 +25,8 @@ export const END = { w: 132, h: 44 };
  * 写了「追问：无」、没有子节点的节点（折叠的不算）在子列最前面留出收尾记号的位置。
  * spineId：主线（从根到这个节点的路径）拉成一条水平线：主线上的子节点与父节点顶边对齐，
  * 排在它前面的兄弟向上排开、后面的照旧向下，否则越往深处追问越往下滑（用户实测反馈）。
+ * 对齐看的是卡片的顶边，不是节点的顶边：回答节点的卡片上方有问题行（Box.head），各节点问题行的行数不同，
+ * 按节点顶边对齐会让卡片和连线上下错开。所以排布时纵向坐标都以卡片顶边为准，只有根的锚点 ay 仍是节点左上角。
  */
 export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: string | null = null, spineId: string | null = null): { pos: Record<string, Box>; visible: string[]; slot: Slot | null; ends: Record<string, Box> } {
   const pos: Record<string, Box> = {};
@@ -33,6 +36,7 @@ export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: stri
   const slotSize = (n: GNode) => (n.id === slotFor && !n.collapsed ? sizes[slotKey(n.id)] ?? SLOT : null);
   const endSize = (n: GNode) => (n.settled && !n.collapsed && !n.children.length ? END : null);
   const size = (n: GNode) => sizes[n.id] ?? DEFAULT[n.kind];
+  const headOf = (n: GNode) => size(n).head ?? 0;
   const kids = (n: GNode) => (n.collapsed ? [] : n.children.map((id) => nodes[id]).filter(Boolean));
   /** 子节点（与输入框）相对父节点子列顶边的纵向位置 */
   const offset = new Map<string, number>();
@@ -40,10 +44,10 @@ export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: stri
   for (let n = spineId ? nodes[spineId] : undefined; n; n = n.parent ? nodes[n.parent] : undefined) spine.add(n.id);
   const overlapsX = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w;
 
-  /** 子树占地：节点自己与全部后代的矩形，坐标相对子树根的左上角（主线前的兄弟会排到根的上方，y 为负） */
+  /** 子树占地：节点自己与全部后代的矩形，坐标相对子树根卡片的左上角（问题行和主线前的兄弟在它上方，y 为负） */
   const measure = (n: GNode): Box[] => {
     const { w, h } = size(n);
-    const own: Box[] = [{ x: 0, y: 0, w, h }];
+    const own: Box[] = [{ x: 0, y: -headOf(n), w, h }];
     const col = w + COL_GAP;
     const placed: Box[] = [];
     const commit = (key: string, boxes: Box[], y: number) => {
@@ -96,11 +100,12 @@ export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: stri
     return [...own, ...placed.map((b) => ({ ...b, x: b.x + col }))];
   };
 
+  /** top：这个节点卡片顶边的纵坐标 */
   const place = (n: GNode, x: number, top: number, ox: number, oy: number) => {
     ox += n.dx;
     oy += n.dy;
-    const { w, h } = size(n);
-    pos[n.id] = { x: x + ox, y: top + oy, w, h };
+    const { w, h, head } = size(n);
+    pos[n.id] = { x: x + ox, y: top - headOf(n) + oy, w, h, ...(head ? { head } : {}) };
     visible.push(n.id);
     for (const c of kids(n)) place(c, x + w + COL_GAP, top + offset.get(c.id)!, ox, oy);
     const es = endSize(n);
@@ -112,7 +117,7 @@ export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: stri
   for (const n of Object.values(nodes)) {
     if (n.parent) continue;
     measure(n);
-    place(n, n.ax, n.ay, 0, 0);
+    place(n, n.ax, n.ay + headOf(n), 0, 0);
   }
   return { pos, visible, slot, ends };
 }
@@ -126,11 +131,15 @@ export function bounds(boxes: Box[]) {
   };
 }
 
-/** 连线从父节点标题行的高度引出（顶部固定布局下，父卡片再长也不影响连线起点），连到子节点竖直中心
- * （2026-10 试过从父节点竖直中间引出，用户看过后改回） */
+/** 连线从父节点卡片第一行的高度引出（顶部固定布局下，父卡片再长也不影响连线起点），连到子节点卡片第一行或竖直中心
+ * （2026-10 试过从父节点竖直中间引出，用户看过后改回）；卡片上方的问题行不算，见 Box.head */
 const EDGE_TOP = 27;
+const anchorY = (b: Box) => {
+  const head = b.head ?? 0;
+  return b.y + head + Math.min((b.h - head) / 2, EDGE_TOP);
+};
 export function edgePath(a: Box, b: Box) {
-  const x1 = a.x + a.w, y1 = a.y + Math.min(a.h / 2, EDGE_TOP), x2 = b.x, y2 = b.y + Math.min(b.h / 2, EDGE_TOP);
+  const x1 = a.x + a.w, y1 = anchorY(a), x2 = b.x, y2 = anchorY(b);
   const d = Math.max(28, (x2 - x1) / 2);
   return `M${x1},${y1} C${x1 + d},${y1} ${x2 - d},${y2} ${x2},${y2}`;
 }

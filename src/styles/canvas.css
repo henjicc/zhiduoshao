@@ -86,43 +86,32 @@
   font-size: var(--fs-sm); font-weight: 500; color: var(--on-solid); background: var(--viz-accent);
   animation: fade var(--t-fast) var(--ease) both;
 }
-/* 标题行拖动节点，正文可以选中复制（判定见 Canvas.tsx 的 DRAG_HANDLE） */
-.card:not(.is-loading) :is(.card-q, .card-tag, .card-images) { cursor: grab; }
-.stage.is-dragging .card-q { cursor: grabbing; }
+/* 卡片上方的问题行拖动节点，卡片里的正文可以选中复制（判定见 Canvas.tsx 的 onPointerDown） */
+.card-head { cursor: grab; }
+.stage.is-dragging .card-head { cursor: grabbing; }
 .card :is(.card-a, .points, .visual, .card-error-text) { user-select: text; cursor: text; }
 .card:focus-visible { border-color: var(--accent-line); }
 .node.is-active .card { border-color: var(--line-hover); box-shadow: var(--shadow-2); }
 .node.is-selected .card { border-color: var(--accent-solid); box-shadow: 0 0 0 3px var(--accent-soft); }
 
-/* 卡片标签：方向、综合、对比、出错，只在有信息时出现 */
-.card-tag {
-  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
-  font: 500 var(--fs-sm)/1 var(--font-ui); color: var(--ink-3);
-}
-.card-tag::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--ink-4); }
-.card-tag.is-link { color: var(--accent); }
-.card-tag.is-link::before { background: var(--accent-solid); }
-/* 对比标签：联网用强调色实心点，不联网用灰色空心点 */
-.card-tag.is-compare { color: var(--accent); }
-.card-tag.is-compare::before { background: var(--accent-solid); }
+/* 问题行：问题退到卡片上方，排法与延伸问题（.pill）相同，方向标签在左、问题在右，点开后文字基本留在原处；
+   离自己的卡片 8px、离上一个节点 16px（ROW_GAP），一眼看出它属于下面这张卡片。卡片里第一眼看到的就是结论 */
+.card-head { display: flex; align-items: baseline; gap: 10px; padding: 0 12px; margin-bottom: 8px; }
+.card-ask { flex: 1; min-width: 0; }
+.card-q { margin: 0; font: 500 var(--fs-md)/1.55 var(--font-ui); color: var(--ink-2); transition: color var(--t-fast); }
+.node:is(.is-active, :hover) .card-q { color: var(--ink); }
+/* 方向、拆开来看、综合、对比、出错，只在有信息时出现；与延伸问题的方向同宽，问题文字和下面一列的延伸问题对齐 */
+.card-tag { flex: none; min-width: 40px; white-space: nowrap; font: 500 var(--fs-sm)/1.5 var(--font-ui); color: var(--ink-3); }
+.card-tag:is(.is-link, .is-compare) { color: var(--accent); }
 .card-tag.is-compare.is-offline { color: var(--ink-3); }
-.card-tag.is-compare.is-offline::before { background: none; box-shadow: inset 0 0 0 var(--hair) var(--ink-3); }
 .card-tag.is-error { color: var(--danger); }
-.card-tag.is-error::before { background: var(--danger-solid); }
-/* 问题与标签放在同一行：问题在左，标签（初始提问、方向、综合、对比、出错）在右上角，标签只有一两个词，单独一行太空；
-   内容在卡片里滚动时这一行固定在顶部，下沿淡出 */
-.card-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: flex-start; gap: 12px; background: var(--surface); }
-.card-head .card-q { flex: 1; min-width: 0; }
-.card-head .card-tag { flex: none; margin: 0; height: 22.5px; }
-.card-shell.is-scrolled .card-head::after {
-  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 14px; pointer-events: none;
-  background: linear-gradient(var(--surface), transparent);
-}
-/* 下面还有内容时底部羽化，提示可以往下滚；滚到底就去掉（ScrollThumb 切换 has-more） */
-.card-shell.has-more { mask-image: linear-gradient(to bottom, #000 calc(100% - 110px), transparent); }
-.card-images { display: flex; gap: 4px; margin: 8px 0; }
+.card-images { display: flex; gap: 4px; margin-top: 6px; }
 .card-images img { width: 40px; height: 40px; object-fit: cover; border-radius: var(--r-xs); box-shadow: inset 0 0 0 var(--hair) var(--line); display: block; }
-.card-q { margin: 0; font-size: var(--fs-lg); font-weight: 600; line-height: 1.5; letter-spacing: 0.01em; color: var(--ink); }
+/* 卡片内滚动：上沿和下沿都羽化，正文不在卡片内边距处被硬切；滚到头就去掉（ScrollThumb 切换 is-scrolled、has-more） */
+.card-shell.is-scrolled { mask-image: linear-gradient(to bottom, transparent, #000 24px); }
+.card-shell.has-more { mask-image: linear-gradient(to bottom, #000 calc(100% - 110px), transparent); }
+.card-shell.is-scrolled.has-more { mask-image: linear-gradient(to bottom, transparent, #000 24px, #000 calc(100% - 110px), transparent); }
+.card-body > :first-child { margin-top: 0; }
 /* 结论是用户第一眼要看的答案：中等字重、墨色，与灰色的要点拉开层级 */
 .card-a { margin: 8px 0 0; font: 500 var(--fs-lg)/1.75 var(--font-ui); letter-spacing: var(--read-track); color: var(--ink); }
 /* 看着答出来的卡片：结论攒一点再按小段浮现（smoothText.ts），每段先从轻微模糊对上焦、再慢慢变实；
@@ -231,7 +220,7 @@
 .btn-sm { height: 26px; padding: 0 9px; font-size: var(--fs-sm); gap: 5px; flex: none; }
 
 .collapse-badge {
-  /* 放在卡片外、连线起点上（标题行高度，见 layout.ts 的 EDGE_TOP），不压住卡片里的文字 */
+  /* 放在卡片外、连线起点上（卡片第一行高度，见 layout.ts 的 EDGE_TOP），不压住卡片里的文字 */
   position: absolute; top: 27px; left: calc(100% + 4px); translate: 0 -50%;
   display: inline-flex; align-items: center; justify-content: center; gap: 1px;
   min-width: 22px; height: 22px; padding: 0 5px; border-radius: 999px;

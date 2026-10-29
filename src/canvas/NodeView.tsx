@@ -98,7 +98,6 @@ function Tag({ n }: { n: GNode }) {
   if (n.links.length && n.op) return <div className="card-tag is-link">{OP_LABEL[n.op]} {n.links.length} 个节点</div>;
   if (n.status === "error") return <div className="card-tag is-error">未完成</div>;
   if (n.framed) return <div className="card-tag" data-replay-id={`framed-${n.id}`}>拆开来看</div>;
-  if (!n.parent && !n.dir) return <div className="card-tag">初始提问</div>;
   return n.dir ? <div className="card-tag">{n.dir}</div> : null;
 }
 
@@ -135,15 +134,17 @@ function AnswerCard({ n, active }: { n: GNode; active: boolean }) {
 
   return (
     <>
+      {/* 问题与方向标签放在卡片上方，排法与延伸问题相同；卡片里只放回答，第一眼看到的是结论 */}
+      <div className="card-head">
+        <Tag n={n} />
+        <div className="card-ask">
+          <p className="card-q">{n.q}</p>
+          <CardImages n={n} />
+        </div>
+      </div>
       <div className={`card${loading ? " is-loading" : ""}${streaming ? " is-streaming" : ""}${live ? " is-live" : ""}`} data-done={shown || undefined} tabIndex={0}>
         <div ref={shell} className={`card-shell${scroll ? " is-scroll" : ""}`} style={style}>
           <div className="card-body" ref={body}>
-            {/* 问题在左、标签在右上角，同一行；卡片内滚动时固定在顶部 */}
-            <div className="card-head">
-              <p className="card-q">{n.q}</p>
-              <Tag n={n} />
-            </div>
-            <CardImages n={n} />
             {loading ? (
               <>
                 <div className="status">
@@ -193,18 +194,19 @@ function AnswerCard({ n, active }: { n: GNode; active: boolean }) {
           </div>
         </div>
         {scroll && <ScrollThumb scroller={shell} />}
+        {/* 放在卡片外侧、连线起点上，所以挂在卡片里定位，跟着卡片而不是上方的问题行 */}
+        {n.children.length > 0 && (
+          <button
+            type="button"
+            className={`collapse-badge${n.collapsed ? " is-collapsed" : ""}`}
+            data-act="collapse"
+            aria-label={n.collapsed ? "展开分支" : "折叠分支"}
+            onClick={() => actions.toggleCollapse(n.id)}
+          >
+            {n.collapsed ? <><Plus size={11} strokeWidth={2} /><span>{hidden}</span></> : <Minus size={11} strokeWidth={2} />}
+          </button>
+        )}
       </div>
-      {n.children.length > 0 && (
-        <button
-          type="button"
-          className={`collapse-badge${n.collapsed ? " is-collapsed" : ""}`}
-          data-act="collapse"
-          aria-label={n.collapsed ? "展开分支" : "折叠分支"}
-          onClick={() => actions.toggleCollapse(n.id)}
-        >
-          {n.collapsed ? <><Plus size={11} strokeWidth={2} /><span>{hidden}</span></> : <Minus size={11} strokeWidth={2} />}
-        </button>
-      )}
     </>
   );
 }
@@ -287,19 +289,23 @@ export const NodeView = memo(function NodeView({ id }: { id: string }) {
   const selected = useGraph((s) => s.selected.includes(id));
   const dim = useGraph((s) => isDim(s, id));
   const ref = useRef<HTMLDivElement>(null);
+  const kind = n?.kind;
 
+  // 延伸问题点开后就地变成回答卡片：按新的内容重新取卡片各层
   useLayoutEffect(() => {
     const el = ref.current!;
-    // 卡片高度在平滑伸缩时，按里层内容的最终高度上报（不超过最大高度），布局一次排到位，不跟着动画逐帧重排
+    // 卡片高度在平滑伸缩时，按里层内容的最终高度上报（不超过最大高度），布局一次排到位，不跟着动画逐帧重排；
+    // 同时上报卡片上方问题行占的高度，连线对齐卡片
+    const card = el.querySelector<HTMLElement>(".card");
     const shell = el.querySelector<HTMLElement>(".card-shell");
     const body = el.querySelector<HTMLElement>(".card-body");
-    const report = () => actions.setSize(id, el.offsetWidth, shell && body ? el.offsetHeight - shell.offsetHeight + Math.min(body.offsetHeight, shellMax(shell)) : el.offsetHeight);
+    const report = () => actions.setSize(id, el.offsetWidth, shell && body ? el.offsetHeight - shell.offsetHeight + Math.min(body.offsetHeight, shellMax(shell)) : el.offsetHeight, card?.offsetTop ?? 0);
     report();
     const ro = new ResizeObserver(report);
     ro.observe(el);
     if (body) ro.observe(body);
     return () => ro.disconnect();
-  }, [id]);
+  }, [id, kind]);
 
   if (!n || !box) return null;
   const cls = ["node", measured && "is-placed", active && "is-active", selected && "is-selected", dim && "dim", n.kind === "question" && "is-question", !n.parent && !n.links.length && "is-root"]
