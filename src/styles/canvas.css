@@ -96,17 +96,17 @@
 .node.is-active .card { border-color: var(--line-hover); box-shadow: var(--shadow-2); }
 .node.is-selected .card { border-color: var(--accent-solid); box-shadow: 0 0 0 3px var(--accent-soft); }
 
-/* 问题行：问题退到卡片上方，排法与延伸问题（.pill）相同：问题靠左、方向标签在右，右侧留出延伸问题箭头的位置，
-   两者的问题和标签上下对齐，点开延伸问题后文字基本留在原处；离自己的卡片 8px、离上一个节点 16px（ROW_GAP），
-   一眼看出它属于下面这张卡片。问题只占一行，放不下的末尾渐隐，点一下在上方浮出完整问题，不推动布局 */
-.card-head { width: var(--card-w); padding: 0 36px 0 12px; margin-bottom: 8px; }
+/* 问题行：问题退到卡片上方。它没有框，问题贴卡片左边、方向标签贴卡片右边（用户要求）；延伸问题（.pill）有框，
+   按自己的内边距同样是问题靠左、标签靠右，两者各按自己的容器对齐，不靠固定偏移去凑。离自己的卡片 8px、
+   离上一个节点 16px（ROW_GAP），一眼看出它属于下面这张卡片。问题只占一行，放不下的末尾渐隐，点一下在上方浮出完整问题，不推动布局 */
+.card-head { width: var(--card-w); margin-bottom: 8px; }
 .card-q-line { position: relative; display: flex; align-items: baseline; gap: 10px; }
 .card-q { flex: 1; min-width: 0; margin: 0; white-space: nowrap; overflow: hidden; font: 500 var(--fs-md)/1.55 var(--font-ui); color: var(--ink-2); transition: color var(--t-fast); }
 .card-q.is-clipped { cursor: pointer; mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
 .node:is(.is-active, :hover) .card-q { color: var(--ink); }
 /* 完整问题：浮在问题行上，最后一行压在原来那一行上、往上长，盖住标签；文字与原来那一行左对齐 */
 .card-q-full {
-  position: absolute; left: -8px; right: -32px; bottom: -5px; z-index: 2; margin: 0; padding: 5px 8px;
+  position: absolute; left: -8px; right: -8px; bottom: -5px; z-index: 2; margin: 0; padding: 5px 8px;
   font: 500 var(--fs-md)/1.55 var(--font-ui); color: var(--ink); cursor: pointer;
   background: var(--surface); border: var(--hair) solid var(--line); border-radius: var(--r-sm); box-shadow: var(--shadow-2);
   animation: enter var(--t-mid) var(--ease) both;
@@ -266,7 +266,7 @@
 
 /* 延伸问题 */
 .pill {
-  display: flex; align-items: baseline; gap: 10px;
+  position: relative; display: flex; align-items: baseline; gap: 10px;
   width: var(--pill-w); padding: 9px 12px;
   border: var(--hair) solid var(--line); border-radius: var(--r-md);
   background: color-mix(in srgb, var(--surface) 70%, transparent);
@@ -276,8 +276,12 @@
 .pill:hover { background: var(--surface); border-color: var(--line-hover); }
 .pill-q { flex: 1; min-width: 0; font-size: var(--fs-md); line-height: 1.55; color: var(--ink-2); }
 .pill:hover .pill-q { color: var(--ink); }
-.pill-dir { flex: none; white-space: nowrap; font: 500 var(--fs-sm)/1.5 var(--font-ui); color: var(--ink-4); }
-.pill-go { flex: none; align-self: center; color: var(--ink-4); opacity: 0; transition: opacity var(--t-fast); }
+/* 方向贴右侧内边距；悬停时换成箭头（同一位置），箭头不常驻占位，方向才能和问题一样按药丸自己的内边距对齐 */
+.pill-dir { flex: none; white-space: nowrap; font: 500 var(--fs-sm)/1.5 var(--font-ui); color: var(--ink-4); transition: opacity var(--t-fast); }
+.pill:hover .pill-dir, .pill:focus-visible .pill-dir { opacity: 0; }
+/* 箭头对着第一行（问题折行时方向也在第一行）：上内边距 9 + (行高约 20 − 图标 14) / 2 */
+.pill-go { position: absolute; right: 12px; top: 12px; color: var(--ink-4); opacity: 0; transition: opacity var(--t-fast); }
+.pill-dir:empty { width: 14px; }
 .pill:hover .pill-go, .pill:focus-visible .pill-go { opacity: 1; color: var(--accent); }
 
 /* 问透的收尾记号：连线末端的实心点压在线的端点上，旁边一行小字（Canvas.tsx 的 EndMarks） */

@@ -1,8 +1,9 @@
-import { ArrowRight, Columns2, Copy, FileDown, Maximize, MessageSquarePlus, PanelRightOpen, RefreshCw, type LucideIcon } from "lucide-react";
+import { ArrowRight, Columns2, Copy, FileDown, Maximize, MessageSquarePlus, PanelRightOpen, RefreshCw, X, type LucideIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fileName, nodesMd, treeOrder } from "../lib/export.ts";
 import { copyText, saveMarkdown } from "../lib/save.ts";
+import type { GNode } from "../store/types.ts";
 import { actions, fit, isReady, useGraph } from "../store/graph.ts";
 import { rootOf } from "../history/snapshot.ts";
 import { usePresence } from "../components/presence.ts";
@@ -18,36 +19,34 @@ function itemsFor(at: MenuAt, ask: () => void): Item[][] {
   const copy: Item[] = at.text ? [{ icon: Copy, label: "复制", run: () => void copyText(at.text) }] : [];
   if (n?.kind === "question") return [copy, [{ icon: ArrowRight, label: "回答这个问题", run: () => actions.ask(n.id) }]];
   if (n) {
-    if (!isReady(n)) return [copy];
-    const one = [n];
-    // 右键的节点在多选里时，同时提供合并导出
+    // 变回原来那条延伸问题，回答和子树去掉（轻提示里可撤销）；还在回答时也能关，点错了不用等它答完。根节点没有可以变回去的问题
+    const close: Item[] = n.parent ? [{ icon: X, label: "关闭", run: () => actions.close(n.id) }] : [];
+    if (!isReady(n)) return [copy, close];
     const many = selected.includes(n.id) ? selected.map((id) => nodes[id]).filter(isReady) : [];
-    const groups: Item[][] = [copy, [
+    return [copy, [
       { icon: PanelRightOpen, label: "打开详情", run: () => actions.openDrawer(n.id) },
       // 重新检索并重新回答，节点只留这次的结果；已经点开回答过的子节点保留
-      { icon: RefreshCw, label: "重新处理", run: () => actions.retry(n.id) },
+      { icon: RefreshCw, label: "重新回答", run: () => actions.retry(n.id) },
       // 对比节点自己不再提供，免得一路对比下去
-      ...(n.compareOf ? [] : [{ icon: Columns2, label: n.sources.length ? "不联网再答一次，并排对比" : "联网再答一次，并排对比", run: () => actions.compare(n.id) }]),
+      ...(n.compareOf ? [] : [{ icon: Columns2, label: compareLabel(n), run: () => actions.compare(n.id) }]),
     ], [
-      { icon: Copy, label: "复制为 Markdown", run: () => void copyText(nodesMd(one), "已复制为 Markdown") },
-      { icon: FileDown, label: "导出为 Markdown…", run: () => void saveMarkdown(fileName(n.q), nodesMd(one)) },
-    ]];
-    if (many.length > 1) groups.push([
-      { icon: Copy, label: `复制选中的 ${many.length} 个节点`, run: () => void copyText(nodesMd(many, mapTitle()), "已复制为 Markdown") },
-      { icon: FileDown, label: `导出选中的 ${many.length} 个节点…`, run: () => void saveMarkdown(fileName(mapTitle()), nodesMd(many, mapTitle())) },
-    ]);
-    return groups;
+      // 导出都是存成 Markdown 文件；右键的节点在多选里时，同时提供合并导出
+      { icon: FileDown, label: "导出", run: () => void saveMarkdown(fileName(n.q), nodesMd([n])) },
+      ...(many.length > 1 ? [{ icon: FileDown, label: `导出选中的 ${many.length} 个节点`, run: () => void saveMarkdown(fileName(mapTitle()), nodesMd(many, mapTitle())) }] : []),
+    ], close];
   }
   const all = treeOrder(nodes);
   return [[
-    { icon: MessageSquarePlus, label: "在这里提一个新问题", run: ask },
+    { icon: MessageSquarePlus, label: "新建问题", run: ask },
   ], all.length ? [
-    { icon: Copy, label: "复制整张地图为 Markdown", run: () => void copyText(nodesMd(all, mapTitle()), "已复制为 Markdown") },
-    { icon: FileDown, label: "导出整张地图为 Markdown…", run: () => void saveMarkdown(fileName(mapTitle()), nodesMd(all, mapTitle())) },
+    { icon: FileDown, label: "导出", run: () => void saveMarkdown(fileName(mapTitle()), nodesMd(all, mapTitle())) },
   ] : [], [
     { icon: Maximize, label: "适应画布", run: fit },
   ]];
 }
+
+/** 对比：原节点联网了就断网再答一次，反过来也一样；对比节点卡片上的标签用同一套说法（NodeView 的 Tag） */
+const compareLabel = (n: GNode) => (n.sources.length ? "断网对比" : "联网对比");
 
 const mapTitle = () => rootOf(useGraph.getState().nodes)?.q ?? "知多少";
 
@@ -64,7 +63,7 @@ function useClamp(x: number, y: number) {
   return { ref, pos };
 }
 
-/** 画布的右键菜单：节点上是复制与导出，空白处是新问题与导出整张地图 */
+/** 画布的右键菜单：节点上是详情、重新回答、对比、导出与关闭，空白处是新建问题、导出整张地图与适应画布 */
 export function ContextMenu({ at, onClose }: { at: MenuAt | null; onClose: () => void }) {
   const [asking, setAsking] = useState<MenuAt | null>(null);
   const shown = useRef(at);
@@ -126,7 +125,7 @@ function Menu({ at, closing, onClose, onAsk }: { at: MenuAt; closing: boolean; o
   );
 }
 
-/** 右键空白处「在这里提一个新问题」：在点击的位置弹出输入框，回车后在那里长出一棵新的树 */
+/** 右键空白处「新建问题」：在点击的位置弹出输入框，回车后在那里长出一棵新的树 */
 function AskHere({ at, onDone }: { at: MenuAt; onDone: () => void }) {
   const [text, setText] = useState("");
   const { ref, pos } = useClamp(at.x, at.y);

@@ -95,7 +95,7 @@ function Revealed({ settled, fresh, sources }: { settled: string; fresh: Phrase[
 }
 
 function Tag({ n }: { n: GNode }) {
-  if (n.compareOf) return <div className={`card-tag is-compare${n.searchMode === "off" ? " is-offline" : ""}`}>{n.searchMode === "off" ? "不联网回答" : "联网回答"}</div>;
+  if (n.compareOf) return <div className={`card-tag is-compare${n.searchMode === "off" ? " is-offline" : ""}`}>{n.searchMode === "off" ? "断网对比" : "联网对比"}</div>;
   if (n.links.length && n.op) return <div className="card-tag is-link">{OP_LABEL[n.op]} {n.links.length} 个节点</div>;
   if (n.status === "error") return <div className="card-tag is-error">未完成</div>;
   if (n.framed) return <div className="card-tag" data-replay-id={`framed-${n.id}`}>拆开来看</div>;
@@ -166,7 +166,7 @@ function AnswerCard({ n, active }: { n: GNode; active: boolean }) {
   const opened = useGraph((s) => !!s.opened[n.id]);
   const showPoints = active || (keepOpen && opened);
   // 这张卡片是看着答出来的：结论先攒一点再分段浮现，图表、要点在结论放完后依次出现；打开历史地图时直接显示，不重播。
-  // 已经显示过的卡片重新回答（重新处理、重试、搜索更多来源）时同样是看着答出来的，要切换过来，否则新结论永远放不出来
+  // 已经显示过的卡片重新回答（右键重新回答、重试、搜索更多来源）时同样是看着答出来的，要切换过来，否则新结论永远放不出来
   const [live, setLive] = useState(n.status !== "ready");
   if (!live && n.status !== "ready") setLive(true);
   const summaryFinal = n.status !== "streaming" || n.points.length > 0 || !!n.visual;
@@ -248,7 +248,7 @@ function AnswerCard({ n, active }: { n: GNode; active: boolean }) {
                   <SourceStack sources={n.sources} />
                   {streaming ? <StatusText className="meta status-text" text={stageText(n, search)} /> : <span className="meta">{sourceMeta(n.sources)}</span>}
                   <span className="card-actions">
-                    <button type="button" className="icon-btn" data-act="detail" aria-label="查看详情" onClick={() => actions.openDrawer(n.id)}>
+                    <button type="button" className="icon-btn" data-act="detail" aria-label="打开详情" onClick={() => actions.openDrawer(n.id)}>
                       <PanelRightOpen size={14} strokeWidth={1.6} />
                     </button>
                   </span>

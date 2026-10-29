@@ -1,13 +1,14 @@
 import type { OpKind } from "../core/protocol.ts";
-import { layout } from "../canvas/layout.ts";
+import { layout, type Sizes } from "../canvas/layout.ts";
 import { maxSeq, restoreNodes, rootOf, type MapRecord } from "../history/snapshot.ts";
-import { addNode, chain, commitNodes, setSize, focusOf, get, initial, isReady, latestAnswered, newNode, newsSince, park, parked, patch, resetSeq, set, setSpine, slotParent, unpark } from "./core.ts";
-import { cancelMap, isDetailRunning, runAnswer, runCommand, runDetail, runningCount, runSynthesis } from "./runs.ts";
+import { addNode, chain, closeAnswer, commitNodes, reopenAnswer, setSize, subtreeIds, type Closed, type GraphState, focusOf, get, initial, isReady, latestAnswered, newNode, newsSince, park, parked, patch, resetSeq, set, setSpine, slotParent, unpark } from "./core.ts";
+import { cancelMap, cancelNodes, isDetailRunning, runAnswer, runCommand, runDetail, runningCount, runSynthesis } from "./runs.ts";
 import { activate, freeAt, freeSpot, revealBranch, startView } from "./view.ts";
 import { recordAngle, recordSite } from "../memory/store.ts";
 import { openExternal } from "../lib/external.ts";
 import { useSettings } from "../settings/store.ts";
 import { reportAction } from "@henjicc/web-replay-probe";
+import { toast } from "./toast.ts";
 
 // 画布对界面的入口：状态读取与界面触发的操作。状态与节点基础操作在 core.ts，视角在 view.ts，请求编排在 runs.ts。
 
@@ -46,6 +47,39 @@ function leaveWith(choice: "stop" | "background", next: () => void) {
     if (runningCount(map.id)) park({ map: { ...map }, nodes, view, opened });
   }
   next();
+}
+
+/** 关闭回答前的画布状态：撤销时放回去 */
+interface Before {
+  mapId: string | undefined;
+  rootId: string;
+  ay: number;
+  spineId: string | null;
+  activeId: string | null;
+  selected: string[];
+  drawerId: string | null;
+  reading: GraphState["reading"];
+  opened: Record<string, true>;
+  sizes: Sizes;
+}
+
+/** 撤销关闭：子树放回去，根锚点和子树的尺寸也恢复成关闭前的，节点各回原位、不再补偿平移 */
+function reopen(id: string, closed: Closed, before: Before) {
+  const s = get();
+  // 轻提示是全局的，期间可能换了地图：各张地图的节点编号都从 n1 起，不能写进别的地图
+  const nodes = s.map?.id === before.mapId ? reopenAnswer(s.nodes, id, closed) : null;
+  if (!nodes) return toast("这个回答已经无法恢复");
+  const root = nodes[before.rootId];
+  if (root) nodes[before.rootId] = { ...root, ay: before.ay };
+  const alive = (x: string | null) => !!x && !!nodes[x];
+  commitNodes(nodes, {
+    sizes: { ...s.sizes, ...before.sizes },
+    opened: { ...s.opened, ...before.opened },
+    selected: [...new Set([...s.selected, ...before.selected.filter(alive)])],
+    ...(alive(before.spineId) ? { spineId: before.spineId } : {}),
+    ...(alive(before.activeId) ? { activeId: before.activeId } : {}),
+    ...(alive(before.drawerId) ? { drawerId: before.drawerId, reading: before.reading } : {}),
+  });
 }
 
 export const actions = {
@@ -131,6 +165,44 @@ export const actions = {
     setSpine(id);
     runAnswer(id);
     activate(id);
+  },
+
+  /**
+   * 关闭一个点开过的回答（根节点没有这一项）：变回点开之前那条延伸问题，回答和下面的子树都去掉，进行中的请求取消。
+   * 丢掉的是付过费的回答，所以轻提示里可以撤销，撤销后子树、主线、当前节点、选中与展开状态都放回去
+   */
+  close(id: string) {
+    const s = get();
+    const n = s.nodes[id];
+    if (!n || n.kind !== "answer" || !n.parent) return;
+    const ids = subtreeIds(s.nodes, id);
+    const inside = (x: string | null) => !!x && ids.includes(x);
+    const root = chain(s.nodes, id)[0];
+    const before: Before = {
+      mapId: s.map?.id, rootId: root.id, ay: root.ay, spineId: s.spineId, activeId: s.activeId, selected: s.selected, drawerId: s.drawerId, reading: s.reading,
+      opened: Object.fromEntries(ids.filter((k) => s.opened[k]).map((k) => [k, true as const])),
+      sizes: Object.fromEntries(ids.filter((k) => s.sizes[k]).map((k) => [k, s.sizes[k]])),
+    };
+    cancelNodes(ids);
+    const { nodes, closed } = closeAnswer(s.nodes, id);
+    const opened = { ...s.opened };
+    for (const k of ids) delete opened[k];
+    // 主线原来在被去掉的子树里：一并切到这条问题，再按关闭前的位置平移整棵树，让它留在原处
+    const spineGone = s.spineId !== id && inside(s.spineId);
+    commitNodes(nodes, {
+      opened,
+      selected: s.selected.filter((x) => !inside(x)),
+      headOpen: inside(s.headOpen) ? null : s.headOpen,
+      ...(inside(s.drawerId) ? { drawerId: null, reading: null } : {}),
+      ...(inside(s.activeId) ? { activeId: n.parent } : {}),
+      ...(spineGone ? { spineId: id } : {}),
+    });
+    const dy = spineGone && s.pos[id] ? get().pos[id].y - s.pos[id].y : 0;
+    if (dy) {
+      const r = get().nodes[root.id];
+      commitNodes({ ...get().nodes, [root.id]: { ...r, ay: r.ay - dy } });
+    }
+    toast("已关闭这个回答", { label: "撤销", run: () => reopen(id, closed, before) });
   },
 
   retry(id: string) {

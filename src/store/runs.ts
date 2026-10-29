@@ -58,6 +58,17 @@ export function cancelMap(map = mapOf(), only?: "command") {
   }
 }
 
+/** 取消这些节点的回答、综合、详解与输入框请求（关闭回答时）；输入框的请求取消后不会再回调，要在这里放开输入框 */
+export function cancelNodes(ids: string[], map = mapOf()) {
+  const want = new Set(ids);
+  for (const k of keysOf(map)) {
+    if (!want.has(k.slice(map.length + 1).split(":")[0])) continue;
+    controllers.get(k)!.abort();
+    controllers.delete(k);
+    if (k.endsWith(":command")) set({ slotBusy: false });
+  }
+}
+
 export const isDetailRunning = (id: string) => controllers.has(full(detailKey(id)));
 
 /** 把回答 / 综合的流式事件写回发起请求的那张地图（可能已在后台） */
@@ -179,8 +190,10 @@ export function runSynthesis(id: string, op: OpKind, instruction: string | undef
   const ctrl = claim(id);
   const map = mapOf();
   const { nodes, search } = get();
+  // 来源节点可能已被关闭（变回延伸问题或随子树去掉），只用还在、答完的
+  const used = linked.filter((l) => isReady(nodes[l]));
   void api.synthesize(
-    { op, instruction, nodes: linked.map((l) => toContext(nodes[l])), existing: relatedQuestions(linked), search, prefs: prefs() },
+    { op, instruction, nodes: used.map((l) => toContext(nodes[l])), existing: relatedQuestions(used), search, prefs: prefs() },
     (ev) => applyEvent(map, id, ev),
     ctrl.signal,
   );

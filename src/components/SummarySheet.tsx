@@ -177,7 +177,7 @@ function Sheet({ closing }: { closing: boolean }) {
               <Copy size={14} strokeWidth={1.6} />复制
             </button>
             <button type="button" className="btn" onClick={() => void saveMarkdown(fileName(title()), markdown())} disabled={result?.status !== "ready"}>
-              <FileDown size={14} strokeWidth={1.6} />下载 Markdown
+              <FileDown size={14} strokeWidth={1.6} />导出
             </button>
           </span>
         </footer>

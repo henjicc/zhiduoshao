@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { NodeContext } from "../core/protocol.ts";
 import { layout, type Box, type Sizes, type Slot } from "../canvas/layout.ts";
-import { maxSeq } from "../history/snapshot.ts";
+import { INTERRUPTED, maxSeq } from "../history/snapshot.ts";
 import type { GNode } from "./types.ts";
 
 // 画布状态的唯一来源与节点读写的基础操作。视角与焦点在 view.ts，请求编排在 runs.ts，界面调用的操作在 graph.ts。
@@ -100,6 +100,43 @@ export function setSpine(id: string) {
   commitNodes(dy ? { ...nodes, [root.id]: { ...root, ay: root.ay - dy } } : nodes, { spineId: id });
 }
 
+/** 子树所有节点的 id（含自己） */
+export function subtreeIds(nodes: Record<string, GNode>, id: string): string[] {
+  const n = nodes[id];
+  return n ? [id, ...n.children.flatMap((c) => subtreeIds(nodes, c))] : [];
+}
+
+/** 关闭掉的回答：节点原样与下面的整棵子树，撤销时放回去 */
+export type Closed = Record<string, GNode>;
+
+/**
+ * 关闭一个点开过的回答：它变回点开之前那条延伸问题（同样的问题、方向与先问理由；看看新进展保留起始日期，再点开照样只查新内容），
+ * 回答和下面长出来的所有节点都去掉。返回新的节点表与被关掉的部分
+ */
+export function closeAnswer(nodes: Record<string, GNode>, id: string): { nodes: Record<string, GNode>; closed: Closed } {
+  const n = nodes[id];
+  const ids = subtreeIds(nodes, id);
+  const closed: Closed = Object.fromEntries(ids.map((k) => [k, nodes[k]]));
+  const out = { ...nodes };
+  for (const k of ids) delete out[k];
+  out[id] = { ...blank(), id, kind: "question", q: n.q, dir: n.dir, nextWhy: n.nextWhy, parent: n.parent, since: n.since, dx: n.dx, dy: n.dy };
+  return { nodes: out, closed };
+}
+
+/** 撤销关闭：那条延伸问题还在、没有被再次点开时，把回答和子树放回去。关闭时请求已经取消：
+ * 还在回答的按中断处理，没写完的详解按没生成处理（打开详情时重新生成），与打开存档时一致 */
+export function reopenAnswer(nodes: Record<string, GNode>, id: string, closed: Closed): Record<string, GNode> | null {
+  if (nodes[id]?.kind !== "question" || !closed[id]) return null;
+  const out = { ...nodes };
+  for (const [k, n] of Object.entries(closed)) {
+    let x = n;
+    if (x.status === "loading" || x.status === "streaming") x = { ...x, status: "error", error: INTERRUPTED, errorCode: null, errorHint: null };
+    if (x.detailStatus === "loading" || x.detailStatus === "streaming") x = { ...x, detail: "", detailStatus: "idle" };
+    out[k] = x;
+  }
+  return out;
+}
+
 /** 节点回报测量到的尺寸（head：卡片上方问题行的高度）并重新布局 */
 export function setSize(id: string, w: number, h: number, head = 0) {
   const { nodes, sizes, spineId } = get();
@@ -135,12 +172,15 @@ export function patch(id: string, fn: (n: GNode) => Partial<GNode>) {
 }
 
 export function newNode(p: Partial<GNode> & Pick<GNode, "kind" | "q">): GNode {
+  return { ...blank(), id: "n" + ++seq, ...p };
+}
+
+/** 新节点的默认字段（不含 id、kind、q） */
+function blank(): Omit<GNode, "id" | "kind" | "q"> {
   return {
-    id: "n" + ++seq,
     dir: null, nextWhy: null, parent: null, links: [], op: null, instruction: null, children: [], collapsed: false, settled: false,
     status: "idle", stage: null, stageDetail: null, images: [], imageNote: "", summary: "", framed: false, thinking: "", points: [], visual: null, memory: null, sources: [], queries: [], searchResults: 0, searches: [], steps: [], dropped: [], searchMs: 0, searchMode: null, compareOf: null, answeredAt: 0, since: null, detail: "", detailStatus: "idle", error: null, errorCode: null, errorHint: null,
     dx: 0, dy: 0, ax: 0, ay: 0,
-    ...p,
   };
 }
 

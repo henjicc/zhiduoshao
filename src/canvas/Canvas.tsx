@@ -90,12 +90,13 @@ function Edges() {
           const on = focus?.path.has(id) && focus.path.has(n.parent);
           out.push(<path key={id} pathLength={1} className={`edge${on ? " on-path" : ""}${dim ? " dim" : ""}`} style={{ d: `path("${edgePath(pos[n.parent], pos[id])}")` }} />);
         }
-        // 「换个方式再答一次」的对比节点：虚线连回原节点
-        if (n.compareOf && vis.has(n.compareOf)) {
+        // 对比节点：点线连回原节点；综合节点：虚线连回来源节点。原节点被关闭、变回延伸问题后不再连
+        const answered = (x: string) => vis.has(x) && nodes[x].kind === "answer";
+        if (n.compareOf && answered(n.compareOf)) {
           out.push(<path key={`cmp-${id}`} className={`edge is-compare${dim ? " dim" : ""}`} style={{ d: `path("${edgePath(pos[n.compareOf], pos[id])}")` }} />);
         }
         for (const l of n.links) {
-          if (vis.has(l)) out.push(<path key={`${l}-${id}`} className={`edge is-link${dim ? " dim" : ""}`} style={{ d: `path("${edgePath(pos[l], pos[id])}")` }} />);
+          if (answered(l)) out.push(<path key={`${l}-${id}`} className={`edge is-link${dim ? " dim" : ""}`} style={{ d: `path("${edgePath(pos[l], pos[id])}")` }} />);
         }
         return out;
       })}
