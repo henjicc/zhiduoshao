@@ -369,7 +369,8 @@ export const NodeView = memo(function NodeView({ id }: { id: string }) {
   const cls = ["node", measured && "is-placed", active && "is-active", selected && "is-selected", dim && "dim", question && "is-question", held && "is-held", !n.parent && !n.links.length && "is-root"]
     .filter(Boolean).join(" ");
   return (
-    <div ref={ref} className={cls} data-id={id} data-replay-id={`node-${id}`} style={{ transform: `translate(${box.x}px, ${box.y}px)` }}>
+    <div ref={ref} className={cls} data-id={id} data-replay-id={`node-${id}`} style={{ transform: `translate(${box.x}px, ${box.y}px)` }}
+      onPointerEnter={() => actions.hover(id)} onPointerLeave={() => actions.hover(null)}>
       {question ? <QuestionPill n={n} /> : <CiteNode.Provider value={id}><AnswerCard n={n} active={active} /></CiteNode.Provider>}
     </div>
   );
@@ -402,18 +403,37 @@ function isDim(s: { nodes: Record<string, GNode>; activeId: string | null; selec
   return !!f && !f.lit.has(id);
 }
 
-/** 延伸列表底部的输入框：自己输入问题，或让模型补充新的探索方向（见 actions.command） */
-export function AskSlot() {
-  const slot = useGraph((s) => s.slot);
-  const busy = useGraph((s) => s.slotBusy);
-  const held = useGraph((s) => !!s.slot && !!s.revealing[s.slot.parent]);
+/** 输入框此刻是否显示：当前节点的常显；其余在鼠标移到节点或输入框的位置上、有焦点、打了字或正在理解时显示 */
+export function slotShown(s: { activeId: string | null; hovered: string | null; slotKeep: Record<string, true>; slotBusy: Record<string, true> }, parent: string) {
+  return s.activeId === parent || s.hovered === parent || !!s.slotKeep[parent] || !!s.slotBusy[parent];
+}
+
+/** 各回答完成节点的延伸列表底部的输入框（位置在布局里一直留着，出现和消失不推动布局） */
+export function AskSlots() {
+  const ids = useGraph((s) => Object.keys(s.slots).join(" "));
+  return ids ? ids.split(" ").map((id) => <AskSlot key={id} parent={id} />) : null;
+}
+
+/** 延伸列表底部的输入框：自己输入问题，或让模型补充新的探索方向（见 actions.command）。
+ * 当前节点的带 is-current，自动化脚本往它里面打字 */
+function AskSlot({ parent }: { parent: string }) {
+  const x = useGraph((s) => s.slots[parent]?.x);
+  const y = useGraph((s) => s.slots[parent]?.y);
+  const busy = useGraph((s) => !!s.slotBusy[parent]);
+  const held = useGraph((s) => !!s.revealing[parent]);
+  const current = useGraph((s) => s.activeId === parent);
+  const shown = useGraph((s) => slotShown(s, parent));
   const [text, setText] = useState("");
+  const [focused, setFocused] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const parent = slot?.parent;
+  const input = useRef<HTMLInputElement>(null);
+  // 理解期间输入框是禁用的，禁用时浏览器不一定发 blur：结束后按实际焦点校正，免得一直保持显示
+  useEffect(() => {
+    if (!busy) setFocused(document.activeElement === input.current);
+  }, [busy]);
 
   useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el || !parent) return;
+    const el = ref.current!;
     const report = () => actions.setSize(slotKey(parent), el.offsetWidth, el.offsetHeight);
     report();
     const ro = new ResizeObserver(report);
@@ -421,25 +441,38 @@ export function AskSlot() {
     return () => ro.disconnect();
   }, [parent]);
 
-  // 换了节点就清空没发出的内容
-  useEffect(() => setText(""), [parent]);
+  const keep = focused || !!text.trim();
+  useEffect(() => actions.keepSlot(parent, keep), [parent, keep]);
+  useEffect(() => () => actions.keepSlot(parent, false), [parent]);
 
-  if (!slot) return null;
+  if (x === undefined || y === undefined) return null;
   const submit = () => {
-    if (actions.command(slot.parent, text)) setText("");
+    if (actions.command(parent, text)) setText("");
   };
+  const cls = ["node is-slot is-placed", current && "is-current", shown && "is-shown", held && "is-held"].filter(Boolean).join(" ");
   return (
-    <div ref={ref} className={`node is-slot is-placed${held ? " is-held" : ""}`} data-act="slot" style={{ transform: `translate(${slot.box.x}px, ${slot.box.y}px)` }}>
+    <div
+      ref={ref}
+      className={cls}
+      data-act="slot"
+      style={{ transform: `translate(${x}px, ${y}px)` }}
+      onPointerEnter={() => actions.hover(parent)}
+      onPointerLeave={() => actions.hover(null)}
+    >
       <form className={`slot${busy ? " is-busy" : ""}`} onSubmit={(e) => { e.preventDefault(); submit(); }}>
         {busy ? <LoaderCircle className="spin slot-icon" size={13} strokeWidth={1.8} /> : <Plus className="slot-icon" size={13} strokeWidth={1.8} />}
         <input
+          ref={input}
           value={text}
           maxLength={500}
           disabled={busy}
+          tabIndex={shown ? undefined : -1}
           placeholder={busy ? "正在理解…" : "输入问题，或想展开的方向"}
           aria-label="追问或补充方向"
           autoComplete="off"
           onChange={(e) => setText(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
         />
         <button type="submit" className="slot-send" aria-label="发送" disabled={busy || !text.trim()}>
           <ArrowRight size={14} strokeWidth={1.8} />

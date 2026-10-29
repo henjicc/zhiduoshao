@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { actions, chain, isReady, setView, useGraph, zoomAt, ZOOM_MAX, ZOOM_MIN } from "../store/graph.ts";
 import { edgePath, type Box } from "./layout.ts";
 import { usePresence } from "../components/presence.ts";
-import { AskSlot, focusSets, isHeld, NodeView } from "./NodeView.tsx";
+import { AskSlots, focusSets, isHeld, NodeView, slotShown } from "./NodeView.tsx";
 import { ContextMenu, type MenuAt } from "./ContextMenu.tsx";
 import "../styles/canvas.css";
 
@@ -72,7 +72,8 @@ function Edges() {
   const pos = useGraph((s) => s.pos);
   const visible = useGraph((s) => s.visible);
   const activeId = useGraph((s) => s.activeId);
-  const slot = useGraph((s) => s.slot);
+  const slots = useGraph((s) => s.slots);
+  const shown = useGraph((s) => Object.keys(s.slots).filter((p) => slotShown(s, p)).join(" "));
   const ends = useGraph((s) => s.ends);
   const selected = useGraph((s) => s.selected);
   const revealing = useGraph((s) => s.revealing);
@@ -103,9 +104,10 @@ function Edges() {
       {Object.entries(ends).map(([id, box]) => pos[id] && !revealing[id] && (
         <path key={`end-${id}`} pathLength={1} className={`edge${focus?.path.has(id) ? " on-path" : ""}${focus && !focus.lit.has(id) ? " dim" : ""}`} style={{ d: `path("${edgePath(pos[id], box)}")` }} />
       ))}
-      {slot && pos[slot.parent] && !revealing[slot.parent] && (
-        <path key="slot" className="edge is-slot" style={{ d: `path("${edgePath(pos[slot.parent], slot.box)}")` }} />
-      )}
+      {/* 连到输入框的虚线跟着输入框淡入淡出 */}
+      {Object.entries(slots).map(([p, box]) => pos[p] && (
+        <path key={`slot-${p}`} className={`edge is-slot${!revealing[p] && shown.split(" ").includes(p) ? " is-shown" : ""}`} style={{ d: `path("${edgePath(pos[p], box)}")` }} />
+      ))}
       {picked.slice(1).map((id, i) => (
         <path key={`sel-${picked[i]}-${id}`} className="sel-link" style={{ d: `path("${selectionPath(pos[picked[i]], pos[id])}")` }} />
       ))}
@@ -329,9 +331,10 @@ export function Canvas() {
         style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.s})` }}
       >
         <Edges />
+        {/* 输入框排在节点前面（层级在下）：透明时仍接收悬停，但不会压住别的卡片 */}
+        <AskSlots />
         {visible.map((id) => <NodeView key={id} id={id} />)}
         <EndMarks />
-        <AskSlot />
       </div>
       <Marquee rect={marquee} />
       <ContextMenu at={menu} onClose={closeMenu} />

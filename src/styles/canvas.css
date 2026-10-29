@@ -93,7 +93,9 @@
 .stage.is-dragging .card-head { cursor: grabbing; }
 .card :is(.card-a, .points, .visual, .card-error-text) { user-select: text; cursor: text; }
 .card:focus-visible { border-color: var(--accent-line); }
-.node.is-active .card { border-color: var(--line-hover); box-shadow: var(--shadow-2); }
+/* 当前节点（侧栏开着时就是侧栏里的那个）：边线用当前路径连线的颜色，加一圈同色细线到约 1px，再浮起一层；
+   和悬停（只深一阶的边线）分得开，和多选（强调色加光圈）也分得开，一眼认得出又不抢正文 */
+.node.is-active .card { border-color: var(--edge-active); box-shadow: 0 0 0 var(--hair) var(--edge-active), var(--shadow-3); }
 .node.is-selected .card { border-color: var(--accent-solid); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 /* 问题行：问题退到卡片上方。它没有框，问题贴卡片左边、方向标签贴卡片右边（用户要求）；延伸问题（.pill）有框，
@@ -297,7 +299,15 @@
 .stage.is-dragging .end-mark { transition: opacity var(--t-fast); }
 
 /* 延伸列表底部的输入框 */
-.edge.is-slot { stroke-dasharray: 3 4; opacity: 0.6; animation: none; }
+/* 输入框的位置一直留着：当前节点的常显，其余平时透明，鼠标移到节点或这个位置、有焦点、打了字、正在理解时淡出显示（is-shown）。
+   显示时用出现动效淡入；隐去时稍等一拍再淡出，鼠标从节点移向输入框、穿过中间的空隙时不闪。透明时仍接收悬停，移到这个位置就能唤出它 */
+.node.is-slot { opacity: 0; animation: none; transition: transform var(--t-mid) var(--ease), opacity var(--t-fast) var(--ease-in) var(--t-fast); }
+.node.is-slot.is-shown { opacity: 1; transition: transform var(--t-mid) var(--ease), opacity var(--t-mid) var(--ease); }
+.node.is-slot.is-held { opacity: 0; }
+.stage.is-dragging .node.is-slot { transition: opacity var(--t-fast) var(--ease-in) var(--t-fast); }
+/* 连到输入框的虚线：同样跟着淡入淡出，线本身用 stroke-opacity 调淡，不和淡入淡出的 opacity 互相覆盖 */
+.edge.is-slot { stroke-dasharray: 3 4; stroke-opacity: 0.6; opacity: 0; animation: none; transition: d var(--t-mid) var(--ease), opacity var(--t-fast) var(--ease-in) var(--t-fast); }
+.edge.is-slot.is-shown { opacity: 1; transition: d var(--t-mid) var(--ease), opacity var(--t-mid) var(--ease); }
 .slot {
   display: flex; align-items: center; gap: 8px;
   width: var(--pill-w); padding: 4px 4px 4px 12px;

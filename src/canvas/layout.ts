@@ -8,7 +8,6 @@ const DEFAULT = { answer: { w: 380, h: 140 }, question: { w: 380, h: 44 } };
 export interface Box { x: number; y: number; w: number; h: number; head?: number }
 export type Sizes = Record<string, { w: number; h: number; head?: number }>;
 /** 延伸列表底部的输入框：不是节点，只占一个子位置 */
-export interface Slot { parent: string; box: Box }
 export const slotKey = (parent: string) => `ask:${parent}`;
 const SLOT = { w: 380, h: 44 };
 /** 问透的收尾记号（连线末端的实心点和一行小字）：也不是节点，排在子列最前面，后面照常是输入框。
@@ -21,19 +20,19 @@ export const END = { w: 132, h: 44 };
  * 兄弟之间按实际占地紧凑排列：后一个兄弟的子树只需避开前面子树里与它左右重叠的节点，
  * 不再把整棵子树当成一个矩形——否则某个节点右侧的子节点列很长时，它下方会空出一大块（用户实测反馈）。
  * 顶部固定：节点流式输出变高时只向下长，上方的内容和来路不会被推动。
- * slotFor：在这个节点的子节点最下方留出输入框的位置。
+ * slotted：哪些节点在子节点最下方留出输入框的位置（不论输入框此刻是否显示，位置都先留好，出现和消失时布局不跳）。
  * 写了「追问：无」、没有子节点的节点（折叠的不算）在子列最前面留出收尾记号的位置。
  * spineId：主线（从根到这个节点的路径）拉成一条水平线：主线上的子节点与父节点顶边对齐，
  * 排在它前面的兄弟向上排开、后面的照旧向下，否则越往深处追问越往下滑（用户实测反馈）。
  * 对齐看的是卡片的顶边，不是节点的顶边：回答节点的卡片上方有问题行（Box.head），各节点问题行的行数不同，
  * 按节点顶边对齐会让卡片和连线上下错开。所以排布时纵向坐标都以卡片顶边为准，只有根的锚点 ay 仍是节点左上角。
  */
-export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: string | null = null, spineId: string | null = null): { pos: Record<string, Box>; visible: string[]; slot: Slot | null; ends: Record<string, Box> } {
+export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotted: ((n: GNode) => boolean) | null = null, spineId: string | null = null): { pos: Record<string, Box>; visible: string[]; slots: Record<string, Box>; ends: Record<string, Box> } {
   const pos: Record<string, Box> = {};
   const visible: string[] = [];
-  let slot: Slot | null = null;
+  const slots: Record<string, Box> = {};
   const ends: Record<string, Box> = {};
-  const slotSize = (n: GNode) => (n.id === slotFor && !n.collapsed ? sizes[slotKey(n.id)] ?? SLOT : null);
+  const slotSize = (n: GNode) => (slotted?.(n) && !n.collapsed ? sizes[slotKey(n.id)] ?? SLOT : null);
   const endSize = (n: GNode) => (n.settled && !n.collapsed && !n.children.length ? END : null);
   const size = (n: GNode) => sizes[n.id] ?? DEFAULT[n.kind];
   const headOf = (n: GNode) => size(n).head ?? 0;
@@ -111,7 +110,7 @@ export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: stri
     const es = endSize(n);
     if (es) ends[n.id] = { x: x + w + COL_GAP + ox, y: top + offset.get(endKey(n.id))! + oy, ...es };
     const ss = slotSize(n);
-    if (ss) slot = { parent: n.id, box: { x: x + w + COL_GAP + ox, y: top + offset.get(slotKey(n.id))! + oy, w: ss.w, h: ss.h } };
+    if (ss) slots[n.id] = { x: x + w + COL_GAP + ox, y: top + offset.get(slotKey(n.id))! + oy, w: ss.w, h: ss.h };
   };
 
   for (const n of Object.values(nodes)) {
@@ -119,7 +118,7 @@ export function layout(nodes: Record<string, GNode>, sizes: Sizes, slotFor: stri
     measure(n);
     place(n, n.ax, n.ay + headOf(n), 0, 0);
   }
-  return { pos, visible, slot, ends };
+  return { pos, visible, slots, ends };
 }
 
 export function bounds(boxes: Box[]) {

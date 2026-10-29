@@ -24,17 +24,18 @@ test("布局顶部固定：父节点变高时自己和子节点的顶边都不�
   }
 });
 
-test("输入框排在当前节点子节点的最下方，并计入子树高度", () => {
+test("留了输入框的节点：输入框排在子节点最下方，并计入子树高度；折叠时不留", () => {
   const nodes = {
     r: node({ id: "r", children: ["a"] }),
     a: node({ id: "a", kind: "question", parent: "r" }),
     s: node({ id: "s" , ay: 0 }),
   };
   const sizes = { r: { w: 340, h: 40 }, a: { w: 260, h: 44 }, [slotKey("r")]: { w: 260, h: 40 } };
-  const l = layout(nodes, sizes, "r");
-  assert.deepEqual(l.slot, { parent: "r", box: { x: 340 + 72, y: 44 + ROW_GAP, w: 260, h: 40 } });
-  assert.equal(layout(nodes, sizes, null).slot, null);
-  assert.equal(layout({ ...nodes, r: { ...nodes.r, collapsed: true } }, sizes, "r").slot, null);
+  const onlyR = (n: { id: string }) => n.id === "r";
+  const l = layout(nodes, sizes, onlyR);
+  assert.deepEqual(l.slots, { r: { x: 340 + 72, y: 44 + ROW_GAP, w: 260, h: 40 } });
+  assert.deepEqual(layout(nodes, sizes, null).slots, {});
+  assert.deepEqual(layout({ ...nodes, r: { ...nodes.r, collapsed: true } }, sizes, onlyR).slots, {});
 });
 
 test("兄弟紧凑排列：前一个节点右侧的子节点列很长时，后一个兄弟仍紧贴在它下方；展开后只把它的子列往下挪、避开同列的节点", () => {
@@ -123,11 +124,12 @@ test("主线拉直：后面的兄弟避开上方兄弟垂下来的子列", () =>
 test("问透的收尾记号排在子列最前面，输入框接在它下面；长出子节点或折叠后不再留位置", () => {
   const nodes = { r: node({ id: "r", settled: true }) };
   const sizes = { r: { w: 380, h: 120 }, [slotKey("r")]: { w: 380, h: 44 } };
-  const l = layout(nodes, sizes, "r");
+  const all = () => true;
+  const l = layout(nodes, sizes, all);
   assert.deepEqual(l.ends.r, { x: 380 + 72, y: 0, ...END });
-  assert.equal(l.slot?.box.y, END.h + ROW_GAP);
+  assert.equal(l.slots.r.y, END.h + ROW_GAP);
   const grown = { r: { ...nodes.r, children: ["a"] }, a: node({ id: "a", kind: "question", parent: "r" }) };
-  assert.deepEqual(layout(grown, sizes, "r").ends, {});
+  assert.deepEqual(layout(grown, sizes, all).ends, {});
   assert.deepEqual(layout({ r: { ...nodes.r, collapsed: true } }, sizes).ends, {});
 });
 

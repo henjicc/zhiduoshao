@@ -93,18 +93,21 @@ export function revealBranch(id: string, auto = false) {
 
 /** 切换当前节点：详情抽屉开着时跟着切换，并让这条分支进入视野 */
 export function activate(id: string) {
-  const { drawerId } = get();
-  // 侧边栏开着时跟着切到新节点的详情，退出正在阅读的来源
-  commitNodes(get().nodes, { ...focusOf(id), ...(drawerId ? { drawerId: id, reading: null } : {}) });
+  commitNodes(get().nodes, focusOf(id));
   revealBranch(id);
 }
 
 /** 右键空白处新起的问题：从点击位置开始，压住已有节点就移到它们下方 */
+/** 占地：节点与各节点下面留好的输入框（透明时也占着位置） */
+const occupied = () => {
+  const { pos, visible, slots } = get();
+  return [...visible.map((id) => pos[id]), ...Object.values(slots)];
+};
+
 export function freeAt(x: number, y: number) {
-  const { pos, visible } = get();
   const W = 380, H = 160, PAD = 24;
   for (let i = 0; i < 50; i++) {
-    const hit = visible.map((id) => pos[id]).filter((b) => b.x < x + W + PAD && b.x + b.w > x - PAD && b.y < y + H + PAD && b.y + b.h > y - PAD);
+    const hit = occupied().filter((b) => b.x < x + W + PAD && b.x + b.w > x - PAD && b.y < y + H + PAD && b.y + b.h > y - PAD);
     if (!hit.length) break;
     y = Math.max(...hit.map((b) => b.y + b.h)) + PAD * 2;
   }
@@ -113,12 +116,12 @@ export function freeAt(x: number, y: number) {
 
 /** 为综合节点找一个不压住已有节点的位置：从所选节点右侧开始，被挡就继续向右 */
 export function freeSpot(linked: string[]) {
-  const { pos, visible } = get();
+  const { pos } = get();
   const W = 380, H = 220, PAD = 24;
   let x = Math.max(...linked.map((id) => pos[id].x + pos[id].w)) + COL_GAP * 1.4;
   const cy = linked.reduce((s, id) => s + pos[id].y + pos[id].h / 2, 0) / linked.length;
   for (let i = 0; i < 50; i++) {
-    const hit = visible.map((id) => pos[id]).filter((b) =>
+    const hit = occupied().filter((b) =>
       b.x < x + W + PAD && b.x + b.w > x - PAD && b.y < cy + H / 2 + PAD && b.y + b.h > cy - H / 2 - PAD);
     if (!hit.length) break;
     x = Math.max(...hit.map((b) => b.x + b.w)) + COL_GAP;

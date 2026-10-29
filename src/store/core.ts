@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { NodeContext } from "../core/protocol.ts";
-import { layout, type Box, type Sizes, type Slot } from "../canvas/layout.ts";
+import { layout, type Box, type Sizes } from "../canvas/layout.ts";
 import { INTERRUPTED, maxSeq } from "../history/snapshot.ts";
 import type { GNode } from "./types.ts";
 
@@ -17,12 +17,16 @@ export interface GraphState {
   sizes: Sizes;
   pos: Record<string, Box>;
   visible: string[];
-  /** 当前节点延伸列表底部的输入框位置 */
-  slot: Slot | null;
+  /** 各节点延伸列表底部的输入框位置，键为节点 id：回答完成的节点都留好位置，当前节点的常显，其余悬停时淡出（AskSlot） */
+  slots: Record<string, Box>;
   /** 问透的节点连线末端的收尾记号位置，键为节点 id */
   ends: Record<string, Box>;
-  /** 输入框正在等模型判断意图 */
-  slotBusy: boolean;
+  /** 正在等模型判断意图的输入框（键为节点 id）；各输入框互不阻塞 */
+  slotBusy: Record<string, true>;
+  /** 鼠标所在的节点或输入框所属的节点：它的输入框淡出显示 */
+  hovered: string | null;
+  /** 有焦点或打了字的输入框（键为节点 id）：保持显示 */
+  slotKeep: Record<string, true>;
   activeId: string | null;
   /** 主线终点：从根到它的路径排成水平线（layout 的 spineId）。只在提问时切换，单纯点选浏览不切换，免得画布跟着晃 */
   spineId: string | null;
@@ -49,9 +53,11 @@ export const initial = (): Omit<GraphState, "search" | "screen" | "map"> => ({
   sizes: {},
   pos: {},
   visible: [],
-  slot: null,
+  slots: {},
   ends: {},
-  slotBusy: false,
+  slotBusy: {},
+  hovered: null,
+  slotKeep: {},
   activeId: null,
   spineId: null,
   opened: {},
@@ -74,16 +80,14 @@ export const set = useGraph.setState;
 let seq = 0;
 export const resetSeq = (n = 0) => { seq = n; };
 
-/** 输入框跟着当前节点：已完成的回答节点才有（加载中、出错、未回答的问题都不显示） */
-export const slotParent = (nodes: Record<string, GNode>, activeId: string | null | undefined) =>
-  activeId && nodes[activeId]?.kind === "answer" && nodes[activeId].status === "ready" ? activeId : null;
+/** 回答完成的节点下面都有输入框（加载中、出错、未回答的问题没有） */
+export const hasSlot = (n: GNode) => n.kind === "answer" && n.status === "ready";
 
-/** 写入节点并重新布局；extra 里带了 activeId 时按新的当前节点放输入框 */
+/** 写入节点并重新布局 */
 export function commitNodes(nodes: Record<string, GNode>, extra: Partial<GraphState> = {}) {
-  const activeId = "activeId" in extra ? extra.activeId : get().activeId;
   const spineId = "spineId" in extra ? extra.spineId : get().spineId;
-  const { pos, visible, slot, ends } = layout(nodes, extra.sizes ?? get().sizes, slotParent(nodes, activeId), spineId ?? null);
-  set({ nodes, pos, visible, slot, ends, ...extra });
+  const { pos, visible, slots, ends } = layout(nodes, extra.sizes ?? get().sizes, hasSlot, spineId ?? null);
+  set({ nodes, pos, visible, slots, ends, ...extra });
 }
 
 /**
@@ -91,10 +95,10 @@ export function commitNodes(nodes: Record<string, GNode>, extra: Partial<GraphSt
  * 看起来是来路和兄弟让开，而不是画布跳走
  */
 export function setSpine(id: string) {
-  const { nodes, pos, sizes, activeId } = get();
+  const { nodes, pos, sizes } = get();
   if (!nodes[id] || get().spineId === id) return;
   const before = pos[id];
-  const after = layout(nodes, sizes, slotParent(nodes, activeId), id).pos[id];
+  const after = layout(nodes, sizes, hasSlot, id).pos[id];
   const root = chain(nodes, id)[0];
   const dy = before && after ? after.y - before.y : 0;
   commitNodes(dy ? { ...nodes, [root.id]: { ...root, ay: root.ay - dy } } : nodes, { spineId: id });
@@ -162,8 +166,12 @@ export function latestAnswered(nodes: Record<string, GNode>) {
   return best?.id ?? null;
 }
 
-/** 激活节点时同时记入 opened */
-export const focusOf = (id: string) => ({ activeId: id, opened: get().opened[id] ? get().opened : { ...get().opened, [id]: true as const } });
+/** 切换当前节点（同时记入 opened）。侧栏开着时跟着切到它的详情、退出正在阅读的来源：侧栏显示的始终是当前节点 */
+export const focusOf = (id: string): Partial<GraphState> => ({
+  activeId: id,
+  opened: get().opened[id] ? get().opened : { ...get().opened, [id]: true as const },
+  ...(get().drawerId && get().drawerId !== id ? { drawerId: id, reading: null } : {}),
+});
 
 export function patch(id: string, fn: (n: GNode) => Partial<GNode>) {
   const n = get().nodes[id];

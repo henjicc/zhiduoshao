@@ -1,7 +1,7 @@
 import type { OpKind } from "../core/protocol.ts";
 import { layout, type Sizes } from "../canvas/layout.ts";
 import { maxSeq, restoreNodes, rootOf, type MapRecord } from "../history/snapshot.ts";
-import { addNode, chain, closeAnswer, commitNodes, reopenAnswer, setSize, subtreeIds, type Closed, type GraphState, focusOf, get, initial, isReady, latestAnswered, newNode, newsSince, park, parked, patch, resetSeq, set, setSpine, slotParent, unpark } from "./core.ts";
+import { addNode, chain, closeAnswer, commitNodes, reopenAnswer, setSize, subtreeIds, type Closed, type GraphState, focusOf, get, initial, isReady, latestAnswered, newNode, newsSince, park, parked, patch, resetSeq, set, setSpine, hasSlot, unpark } from "./core.ts";
 import { cancelMap, cancelNodes, isDetailRunning, runAnswer, runCommand, runDetail, runningCount, runSynthesis } from "./runs.ts";
 import { activate, freeAt, freeSpot, revealBranch, startView } from "./view.ts";
 import { recordAngle, recordSite } from "../memory/store.ts";
@@ -72,13 +72,15 @@ function reopen(id: string, closed: Closed, before: Before) {
   const root = nodes[before.rootId];
   if (root) nodes[before.rootId] = { ...root, ay: before.ay };
   const alive = (x: string | null) => !!x && !!nodes[x];
+  // 当前节点经 focusOf 恢复：侧栏开着时随之切过去，和当前节点始终一致
+  const focus = alive(before.activeId) ? focusOf(before.activeId!) : {};
   commitNodes(nodes, {
+    ...focus,
     sizes: { ...s.sizes, ...before.sizes },
-    opened: { ...s.opened, ...before.opened },
+    opened: { ...(focus.opened ?? s.opened), ...before.opened },
     selected: [...new Set([...s.selected, ...before.selected.filter(alive)])],
     ...(alive(before.spineId) ? { spineId: before.spineId } : {}),
-    ...(alive(before.activeId) ? { activeId: before.activeId } : {}),
-    ...(alive(before.drawerId) ? { drawerId: before.drawerId, reading: before.reading } : {}),
+    ...(alive(before.drawerId) && before.drawerId === before.activeId ? { drawerId: before.drawerId, reading: before.reading } : {}),
   });
 }
 
@@ -122,10 +124,10 @@ export const actions = {
     resetSeq(maxSeq(nodes));
     const root = rootOf(nodes);
     const spineId = latestAnswered(nodes);
-    const { pos, visible, slot, ends } = layout(nodes, {}, slotParent(nodes, root?.id), spineId);
+    const { pos, visible, slots, ends } = layout(nodes, {}, hasSlot, spineId);
     set({
       ...initial(), screen: "workspace", map: { id: r.id, createdAt: r.createdAt, updatedAt: r.updatedAt },
-      nodes, pos, visible, slot, ends, activeId: root?.id ?? null, spineId, view: { ...(live?.view ?? r.view), glide: false },
+      nodes, pos, visible, slots, ends, activeId: root?.id ?? null, spineId, view: { ...(live?.view ?? r.view), glide: false },
       // 激活过的节点随存档保存，「保持展开」时重新打开仍是展开的
       opened: { ...(live?.opened ?? Object.fromEntries((r.opened ?? []).filter((id) => nodes[id]).map((id) => [id, true as const]))), ...(root ? { [root.id]: true as const } : {}) },
     });
@@ -185,16 +187,18 @@ export const actions = {
     };
     cancelNodes(ids);
     const { nodes, closed } = closeAnswer(s.nodes, id);
-    const opened = { ...s.opened };
+    // 当前节点在被去掉的子树里时回到父节点（侧栏开着且不在子树里时随之切过去）
+    const focus = inside(s.activeId) ? focusOf(n.parent) : {};
+    const opened = { ...(focus.opened ?? s.opened) };
     for (const k of ids) delete opened[k];
     // 主线原来在被去掉的子树里：一并切到这条问题，再按关闭前的位置平移整棵树，让它留在原处
     const spineGone = s.spineId !== id && inside(s.spineId);
     commitNodes(nodes, {
+      ...focus,
       opened,
       selected: s.selected.filter((x) => !inside(x)),
       headOpen: inside(s.headOpen) ? null : s.headOpen,
       ...(inside(s.drawerId) ? { drawerId: null, reading: null } : {}),
-      ...(inside(s.activeId) ? { activeId: n.parent } : {}),
       ...(spineGone ? { spineId: id } : {}),
     });
     const dy = spineGone && s.pos[id] ? get().pos[id].y - s.pos[id].y : 0;
@@ -293,6 +297,21 @@ export const actions = {
     setSize(id, w, h, head);
   },
 
+  /** 鼠标移到节点或它的输入框上：那个输入框淡出显示；移开传 null */
+  hover(id: string | null) {
+    if (get().hovered !== id) set({ hovered: id });
+  },
+
+  /** 输入框有焦点或打了字时保持显示 */
+  keepSlot(id: string, on: boolean) {
+    const k = get().slotKeep;
+    if (!!k[id] === on) return;
+    const next = { ...k };
+    if (on) next[id] = true;
+    else delete next[id];
+    set({ slotKeep: next });
+  },
+
   setRevealing(id: string, on: boolean) {
     const r = get().revealing;
     if (!!r[id] === on) return;
@@ -317,7 +336,7 @@ export const actions = {
 
   openDrawer(id: string) {
     followSpine(id);
-    commitNodes(get().nodes, { drawerId: id, reading: null, ...focusOf(id) });
+    commitNodes(get().nodes, { ...focusOf(id), drawerId: id, reading: null });
     revealBranch(id);
     reportAction("detail", { nodeId: id });
   },
@@ -337,7 +356,7 @@ export const actions = {
     const s = get().nodes[nodeId]?.sources[n - 1];
     if (!s) return;
     if (s.url) recordSite(s.url, get().map?.id);
-    commitNodes(get().nodes, { drawerId: nodeId, reading: { nodeId, sourceId: s.id }, ...focusOf(nodeId) });
+    commitNodes(get().nodes, { ...focusOf(nodeId), drawerId: nodeId, reading: { nodeId, sourceId: s.id } });
   },
 
   /** 阅读视图里切换到上一条 / 下一条来源（循环） */

@@ -58,6 +58,12 @@ export function cancelMap(map = mapOf(), only?: "command") {
   }
 }
 
+const without = (r: Record<string, true>, id: string) => {
+  const next = { ...r };
+  delete next[id];
+  return next;
+};
+
 /** 取消这些节点的回答、综合、详解与输入框请求（关闭回答时）；输入框的请求取消后不会再回调，要在这里放开输入框 */
 export function cancelNodes(ids: string[], map = mapOf()) {
   const want = new Set(ids);
@@ -65,7 +71,7 @@ export function cancelNodes(ids: string[], map = mapOf()) {
     if (!want.has(k.slice(map.length + 1).split(":")[0])) continue;
     controllers.get(k)!.abort();
     controllers.delete(k);
-    if (k.endsWith(":command")) set({ slotBusy: false });
+    if (k.endsWith(":command")) set({ slotBusy: without(get().slotBusy, k.slice(map.length + 1).split(":")[0]) });
   }
 }
 
@@ -223,11 +229,11 @@ export function runDetail(id: string) {
 export function runCommand(parentId: string, input: string, onAsk: (question: string) => void) {
   const { nodes, slotBusy } = get();
   const p = nodes[parentId];
-  if (slotBusy || !isReady(p) || !input.trim()) return false;
+  if (slotBusy[parentId] || !isReady(p) || !input.trim()) return false;
   const key = commandKey(parentId);
   const ctrl = claim(key);
-  set({ slotBusy: true });
-  const finish = () => { controllers.delete(full(key)); set({ slotBusy: false }); };
+  set({ slotBusy: { ...slotBusy, [parentId]: true } });
+  const finish = () => { controllers.delete(full(key)); set({ slotBusy: without(get().slotBusy, parentId) }); };
   const existing = p.children.map((c) => nodes[c]?.q).filter(Boolean);
   void api.command({ input: input.trim(), node: { q: p.q, summary: stripCites(p.summary) }, path: pathOf(parentId), existing }, (ev) => {
     if (ctrl.signal.aborted) return;
