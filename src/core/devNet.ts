@@ -74,7 +74,8 @@ function capture(name: string, base: HttpFetch): HttpFetch {
     if (old.format !== PACK_FORMAT || old.version > PACK_VERSION) throw new Error(`「${name}」已存在，但不是这个版本能续写的数据包`);
     atShift = Math.max(0, ...old.calls.map((c) => c.at + (c.ms ?? c.errorMs ?? 0))) + 1000;
     for (const c of pack.calls) c.at += atShift;
-    pack.calls.unshift(...old.calls);
+    const newer = new Set(pack.calls.map(callKey));
+    pack.calls.unshift(...old.calls.filter((c) => !newer.has(callKey(c))));
     pack.createdAt = old.createdAt;
     console.info(`[数据包] 「${name}」已有 ${old.calls.length} 次调用，接着记`);
   }).catch((err) => {
@@ -134,6 +135,9 @@ function capture(name: string, base: HttpFetch): HttpFetch {
     const started = performance.now();
     const call: PackCall = { at: Math.round(started - t0) + atShift, method: (init.method ?? "GET").toUpperCase(), url, headers: safeHeaders(init.headers), body: packBody(init.body) };
     for (const s of secretsOf(init.headers)) secrets.add(s);
+    // 同样的请求再发一次（重新处理、刷新后重问）只留最新这次：数据包不会越记越大，重放拿到的也是最新结果
+    const key = callKey(call);
+    pack.calls = pack.calls.filter((c) => callKey(c) !== key);
     pack.calls.push(call);
     const sent = base(url, init);
     // 复制一份响应边读边记，原样交给调用方；读完、失败或中途取消后再写数据包
@@ -161,6 +165,9 @@ function capture(name: string, base: HttpFetch): HttpFetch {
 }
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+/** 判断两次调用是不是同一个请求，和重放时的匹配用同一套规则 */
+const callKey = (c: PackCall) => requestKey(c.method, c.url, c.body);
 
 function toBase64(bytes: Uint8Array) {
   let s = "";
@@ -215,8 +222,8 @@ function replay(name: string, pace: Pace): HttpFetch {
     }
     const method = (init.method ?? "GET").toUpperCase();
     const key = requestKey(method, url, packBody(init.body));
-    // 同样的请求出现多次时按顺序取
-    const i = pack.byKey.get(key)?.find((x) => !used.has(x));
+    // 同样的请求出现多次时按顺序取；都用过了就再用最后一条（采集时同样的请求只留最新一次）
+    const i = pack.byKey.get(key)?.find((x) => !used.has(x)) ?? pack.byKey.get(key)?.at(-1);
     if (i === undefined) {
       missing++;
       reportMissing(name, method, url, key, pack.calls, used);

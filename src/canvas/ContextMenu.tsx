@@ -1,4 +1,4 @@
-import { ArrowRight, Columns2, Copy, FileDown, Maximize, MessageSquarePlus, PanelRightOpen, type LucideIcon } from "lucide-react";
+import { ArrowRight, Columns2, Copy, FileDown, Maximize, MessageSquarePlus, PanelRightOpen, RefreshCw, type LucideIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fileName, nodesMd, treeOrder } from "../lib/export.ts";
@@ -24,6 +24,8 @@ function itemsFor(at: MenuAt, ask: () => void): Item[][] {
     const many = selected.includes(n.id) ? selected.map((id) => nodes[id]).filter(isReady) : [];
     const groups: Item[][] = [copy, [
       { icon: PanelRightOpen, label: "打开详情", run: () => actions.openDrawer(n.id) },
+      // 重新检索并重新回答，节点只留这次的结果；已经点开回答过的子节点保留
+      { icon: RefreshCw, label: "重新处理", run: () => actions.retry(n.id) },
       // 对比节点自己不再提供，免得一路对比下去
       ...(n.compareOf ? [] : [{ icon: Columns2, label: n.sources.length ? "不联网再答一次，并排对比" : "联网再答一次，并排对比", run: () => actions.compare(n.id) }]),
     ], [
