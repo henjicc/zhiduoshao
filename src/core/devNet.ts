@@ -54,54 +54,31 @@ const packUrl = (name: string) => `/__zds/pack/${encodeURIComponent(name)}`;
 // ---- 采集 ----
 
 function capture(name: string, base: HttpFetch): HttpFetch {
-  const pack: Pack = { format: PACK_FORMAT, version: PACK_VERSION, name, createdAt: new Date().toISOString(), calls: [] };
   const secrets = new Set<string>();
   /** 还没结束的调用（包括还没收到响应头的） */
   const open = new Set<Promise<unknown>>();
   const t0 = performance.now();
-  let dirty = false;
-  let saveError: unknown = null;
-  /** 接着已有数据包记时，新调用的发出时刻排在已有调用之后 */
-  let atShift = 0;
-  let resumeFailed = false;
+  /** 这一页的采集：开发服务器据此把这一页各次调用的发出时刻接在数据包已有调用之后 */
+  const session = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  let sending: Promise<void> = Promise.resolve();
+  let sendError: unknown = null;
+  let total = 0;
 
-  // 同名数据包已存在（页面刷新、热更新整页重载、接着上次采集）时接在后面记，不覆盖已经录下的调用；
-  // 要从头重采就先删掉文件或换个名字
-  const resumed = fetch(packUrl(name), { method: "GET" }).then(async (res) => {
-    if (res.status === 404) return;
-    if (!res.ok) throw new Error(`读取已有数据包失败（HTTP ${res.status}）`);
-    const old = (await res.json()) as Pack;
-    if (old.format !== PACK_FORMAT || old.version > PACK_VERSION) throw new Error(`「${name}」已存在，但不是这个版本能续写的数据包`);
-    atShift = Math.max(0, ...old.calls.map((c) => c.at + (c.ms ?? c.errorMs ?? 0))) + 1000;
-    for (const c of pack.calls) c.at += atShift;
-    const newer = new Set(pack.calls.map(callKey));
-    pack.calls.unshift(...old.calls.filter((c) => !newer.has(callKey(c))));
-    pack.createdAt = old.createdAt;
-    console.info(`[数据包] 「${name}」已有 ${old.calls.length} 次调用，接着记`);
-  }).catch((err) => {
-    resumeFailed = true;
-    saveError = err;
-    console.error("[数据包] 读取已有数据包失败", err);
-    showProblem(`数据包「${name}」已存在但读不出来，这次采集不会写入，详见控制台。`);
-  });
-  // 读完已有内容之前不写，免得先把只有新调用的半份写回去
-  let saving: Promise<void> = resumed;
-
-  // 每次调用结束都整份写一遍；写入串行，写的时候又有变化就再写一次
-  const save = () => {
-    dirty = true;
-    saving = saving.then(async () => {
-      if (!dirty || resumeFailed) return;
-      dirty = false;
-      const res = await fetch(packUrl(name), { method: "PUT", headers: { "Content-Type": "application/json" }, body: scrubSecrets(JSON.stringify(pack), secrets) });
+  // 每次调用结束只把这一次发给开发服务器，由它并进数据包文件（同名数据包接着记，同样的请求只留最新一次）。
+  // 不在页面里整份序列化、上传：数据包有好几兆，那样每结束一次调用界面就卡一下，两个节点同时回答时一下接一下
+  const send = (call: PackCall) => {
+    const body = scrubSecrets(JSON.stringify(call), secrets);
+    sending = sending.then(async () => {
+      const res = await fetch(`${packUrl(name)}?session=${session}`, { method: "POST", headers: { "Content-Type": "application/json" }, body });
       if (!res.ok) throw new Error(`数据包写入失败（HTTP ${res.status}）：${await res.text()}`);
-      saveError = null;
+      total = Number(res.headers.get("x-zds-calls"));
+      sendError = null;
     }).catch((err) => {
-      saveError = err;
+      sendError = err;
       console.error("[数据包] 写入失败", err);
       showProblem(`数据包「${name}」写入失败，详见控制台。`);
     });
-    return saving;
+    return sending;
   };
 
   /** 请求失败或读到一半中断：记下原因、时刻，以及是不是调用方自己取消的（重放时照样等调用方取消） */
@@ -133,19 +110,15 @@ function capture(name: string, base: HttpFetch): HttpFetch {
 
   const fetchFn: HttpFetch = (url, init) => {
     const started = performance.now();
-    const call: PackCall = { at: Math.round(started - t0) + atShift, method: (init.method ?? "GET").toUpperCase(), url, headers: safeHeaders(init.headers), body: packBody(init.body) };
+    const call: PackCall = { at: Math.round(started - t0), method: (init.method ?? "GET").toUpperCase(), url, headers: safeHeaders(init.headers), body: packBody(init.body) };
     for (const s of secretsOf(init.headers)) secrets.add(s);
-    // 同样的请求再发一次（重新处理、刷新后重问）只留最新这次：数据包不会越记越大，重放拿到的也是最新结果
-    const key = callKey(call);
-    pack.calls = pack.calls.filter((c) => callKey(c) !== key);
-    pack.calls.push(call);
     const sent = base(url, init);
-    // 复制一份响应边读边记，原样交给调用方；读完、失败或中途取消后再写数据包
+    // 复制一份响应边读边记，原样交给调用方；读完、失败或中途取消后再写进数据包
     const job = sent
       .then((res) => record(call, res.clone(), started))
       .then(() => { call.ms = Math.round(performance.now() - started); })
       .catch((err) => failed(call, err, started, init.signal))
-      .finally(() => { open.delete(job); void save(); });
+      .finally(() => { open.delete(job); void send(call); });
     open.add(job);
     return sent;
   };
@@ -155,9 +128,9 @@ function capture(name: string, base: HttpFetch): HttpFetch {
     name,
     flush: async () => {
       while (open.size) await Promise.all([...open]);
-      await save();
-      if (saveError) throw saveError;
-      return pack.calls.length;
+      await sending;
+      if (sendError) throw sendError;
+      return total;
     },
   };
   console.info(`[数据包] 采集中：${name}`);
@@ -166,8 +139,6 @@ function capture(name: string, base: HttpFetch): HttpFetch {
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-/** 判断两次调用是不是同一个请求，和重放时的匹配用同一套规则 */
-const callKey = (c: PackCall) => requestKey(c.method, c.url, c.body);
 
 function toBase64(bytes: Uint8Array) {
   let s = "";
