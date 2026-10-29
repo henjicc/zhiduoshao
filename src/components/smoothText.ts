@@ -95,6 +95,8 @@ export function usePhraseReveal(text: string, final: boolean, live: boolean) {
 /** 要点逐条出现：start 之后先停一拍，再每隔一段时间多显示一条；live 为假时全部直接显示 */
 export function useStagger(count: number, start: boolean, live: boolean) {
   const [shown, setShown] = useState(live ? 0 : count);
+  // 重新回答：条数比已经显示的还少，从头来
+  if (shown > count) setShown(count);
   useEffect(() => {
     if (!live) return setShown(count);
     if (!start || shown >= count) return;

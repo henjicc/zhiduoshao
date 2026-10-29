@@ -119,8 +119,10 @@ function AnswerCard({ n, active }: { n: GNode; active: boolean }) {
   const keepOpen = useSettings((s) => !s.autoCollapse);
   const opened = useGraph((s) => !!s.opened[n.id]);
   const showPoints = active || (keepOpen && opened);
-  // 这张卡片是看着答出来的（挂载时还没答完）：结论先攒一点再分段浮现，图表、要点在结论放完后依次出现；打开历史地图时直接显示，不重播
-  const live = useRef(n.status !== "ready").current;
+  // 这张卡片是看着答出来的：结论先攒一点再分段浮现，图表、要点在结论放完后依次出现；打开历史地图时直接显示，不重播。
+  // 已经显示过的卡片重新回答（重新处理、重试、搜索更多来源）时同样是看着答出来的，要切换过来，否则新结论永远放不出来
+  const [live, setLive] = useState(n.status !== "ready");
+  if (!live && n.status !== "ready") setLive(true);
   const summaryFinal = n.status !== "streaming" || n.points.length > 0 || !!n.visual;
   const summary = usePhraseReveal(n.summary, summaryFinal, live);
   const pointsShown = useStagger(n.points.length, summary.done, live);
