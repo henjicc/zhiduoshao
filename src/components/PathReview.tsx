@@ -2,7 +2,7 @@ import { useRef, type CSSProperties } from "react";
 import type { Learned, Source } from "../core/protocol.ts";
 import { actions } from "../store/graph.ts";
 import type { GNode } from "../store/types.ts";
-import { Cites, NextWhy } from "./common.tsx";
+import { Cites } from "./common.tsx";
 
 /** 已经弄清的几件事：快模型整理中、整理好或失败（失败时整块不显示） */
 export interface Learning { status: "loading" | "ready" | "error"; items: Learned[]; sources: Source[] }
@@ -65,11 +65,8 @@ export function PathReview({ list, learned, more, sources }: { list: GNode[]; le
           <div className="followups">
             {more.map((q) => (
               <button key={q.id} type="button" className="followup" onClick={() => { actions.closeSummary(); actions.ask(q.id); }}>
+                <span className="followup-q">{q.q}</span>
                 <span className="pill-dir">{q.dir}</span>
-                <span className="followup-body">
-                  <span>{q.q}</span>
-                  {q.nextWhy && <NextWhy why={q.nextWhy} replayId={`review-next-${q.id}`} />}
-                </span>
               </button>
             ))}
           </div>

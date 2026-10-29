@@ -28,6 +28,10 @@ export interface GraphState {
   spineId: string | null;
   /** 激活过的节点；设置为「保持展开」时它们的要点一直显示。只在本次打开地图期间有效，不存档 */
   opened: Record<string, true>;
+  /** 正看着答出来、内容还没放完的回答节点：它的延伸问题、输入框和收尾记号先占好位置但不显示，放完再淡入。不存档 */
+  revealing: Record<string, true>;
+  /** 卡片上方问题行被点开、显示完整问题的节点 */
+  headOpen: string | null;
   selected: string[];
   drawerId: string | null;
   /** 侧边栏里正在阅读的来源（节点 id 与来源 id）；为 null 时侧边栏显示节点详情。
@@ -51,6 +55,8 @@ export const initial = (): Omit<GraphState, "search" | "screen" | "map"> => ({
   activeId: null,
   spineId: null,
   opened: {},
+  revealing: {},
+  headOpen: null,
   selected: [],
   drawerId: null,
   reading: null,

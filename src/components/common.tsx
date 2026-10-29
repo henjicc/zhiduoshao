@@ -69,16 +69,6 @@ export function Cites({ cites, sources, quote = "" }: { cites: number[]; sources
 /** 角标所在的节点：气泡里「在侧边栏阅读」需要知道来源属于哪个节点（总结面板里没有） */
 export const CiteNode = createContext<string | null>(null);
 
-/** 推荐先问的标记：「先问」两个字用图表强调色（墨色方案的主题色是灰，不够醒目），后面跟半句理由 */
-export function NextWhy({ why, replayId }: { why: string; replayId: string }) {
-  return (
-    <span className="next-why" data-replay-id={replayId}>
-      <span className="next-why-label">先问</span>
-      <span>{why}</span>
-    </span>
-  );
-}
-
 /** 并列的几项元信息（网站、时间、数量）：各自一段，用间距分开，不用分隔符号 */
 export function MetaParts({ items, className }: { items: ReactNode[]; className?: string }) {
   const xs = items.filter((x) => x !== null && x !== undefined && x !== false && x !== "");

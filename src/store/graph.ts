@@ -221,6 +221,20 @@ export const actions = {
     setSize(id, w, h, head);
   },
 
+  setRevealing(id: string, on: boolean) {
+    const r = get().revealing;
+    if (!!r[id] === on) return;
+    const next = { ...r };
+    if (on) next[id] = true;
+    else delete next[id];
+    set({ revealing: next });
+  },
+
+  /** 点开或收起卡片上方的问题行；传 null 收起 */
+  toggleHead(id: string | null) {
+    set({ headOpen: id && get().headOpen !== id ? id : null });
+  },
+
   /** 详情抽屉打开已完成的节点时调用：没有详解就生成；force 用于失败后重试或重新生成 */
   loadDetail(id: string, force = false) {
     const n = get().nodes[id];

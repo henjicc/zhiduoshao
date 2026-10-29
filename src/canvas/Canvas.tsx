@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { actions, chain, isReady, setView, useGraph, zoomAt, ZOOM_MAX, ZOOM_MIN } from "../store/graph.ts";
 import { edgePath, type Box } from "./layout.ts";
 import { usePresence } from "../components/presence.ts";
-import { AskSlot, focusSets, NodeView } from "./NodeView.tsx";
+import { AskSlot, focusSets, isHeld, NodeView } from "./NodeView.tsx";
 import { ContextMenu, type MenuAt } from "./ContextMenu.tsx";
 import "../styles/canvas.css";
 
@@ -52,7 +52,8 @@ function createSmoothZoom() {
 
 type Drag =
   | { type: "pan"; sx: number; sy: number; ox: number; oy: number; moved: boolean }
-  | { type: "node"; sx: number; sy: number; id: string; orig: Record<string, { dx: number; dy: number }>; moved: boolean }
+  /** head：在卡片上方那一行问题上按下的，没拖动就是点开或收起完整问题 */
+  | { type: "node"; sx: number; sy: number; id: string; orig: Record<string, { dx: number; dy: number }>; moved: boolean; head: HTMLElement | null }
   | { type: "marquee"; sx: number; sy: number; base: string[]; moved: boolean }
   /** 在卡片正文上按下：交给浏览器选择文字，没拖动、也没选中文字时按点击处理 */
   | { type: "text"; sx: number; sy: number; id: string; moved: boolean };
@@ -74,6 +75,7 @@ function Edges() {
   const slot = useGraph((s) => s.slot);
   const ends = useGraph((s) => s.ends);
   const selected = useGraph((s) => s.selected);
+  const revealing = useGraph((s) => s.revealing);
   const picked = selected.filter((id) => pos[id] && visible.includes(id));
   const focus = focusSets({ nodes, activeId });
   const vis = new Set(visible);
@@ -83,8 +85,8 @@ function Edges() {
         const n = nodes[id];
         const dim = focus && !focus.lit.has(id);
         const out = [];
-        // 路径写在 CSS d 属性上，才能和节点位移使用同一过渡
-        if (n.parent && pos[n.parent]) {
+        // 路径写在 CSS d 属性上，才能和节点位移使用同一过渡；还没出现的延伸问题等它出现时再画，连线随之长出来
+        if (n.parent && pos[n.parent] && !isHeld({ nodes, revealing }, id)) {
           const on = focus?.path.has(id) && focus.path.has(n.parent);
           out.push(<path key={id} pathLength={1} className={`edge${on ? " on-path" : ""}${dim ? " dim" : ""}`} style={{ d: `path("${edgePath(pos[n.parent], pos[id])}")` }} />);
         }
@@ -97,10 +99,10 @@ function Edges() {
         }
         return out;
       })}
-      {Object.entries(ends).map(([id, box]) => pos[id] && (
+      {Object.entries(ends).map(([id, box]) => pos[id] && !revealing[id] && (
         <path key={`end-${id}`} pathLength={1} className={`edge${focus?.path.has(id) ? " on-path" : ""}${focus && !focus.lit.has(id) ? " dim" : ""}`} style={{ d: `path("${edgePath(pos[id], box)}")` }} />
       ))}
-      {slot && pos[slot.parent] && (
+      {slot && pos[slot.parent] && !revealing[slot.parent] && (
         <path key="slot" className="edge is-slot" style={{ d: `path("${edgePath(pos[slot.parent], slot.box)}")` }} />
       )}
       {picked.slice(1).map((id, i) => (
@@ -217,7 +219,7 @@ export function Canvas() {
     } else if (nodeEl && e.button === 0) {
       const id = nodeEl.dataset.id!;
       const ids = selected.includes(id) ? selected : [id];
-      drag.current = { type: "node", sx: e.clientX, sy: e.clientY, id, moved: false, orig: Object.fromEntries(ids.map((x) => [x, { dx: nodes[x].dx, dy: nodes[x].dy }])) };
+      drag.current = { type: "node", sx: e.clientX, sy: e.clientY, id, moved: false, head: target.closest<HTMLElement>(".card-q-line"), orig: Object.fromEntries(ids.map((x) => [x, { dx: nodes[x].dx, dy: nodes[x].dy }])) };
     } else {
       drag.current = { type: "pan", sx: e.clientX, sy: e.clientY, ox: v.x, oy: v.y, moved: false };
     }
@@ -297,6 +299,11 @@ export function Canvas() {
       if (useGraph.getState().selected.length) actions.setSelected([]);
       return;
     }
+    // 点问题行只展开或收起完整问题，不切换当前节点；一行放得下时没有反应（Ctrl / ⌘ 点击照常加选）
+    if (d.type === "node" && d.head && !e.ctrlKey && !e.metaKey) {
+      if (d.head.querySelector(".card-q.is-clipped")) actions.toggleHead(d.id);
+      return;
+    }
     onNodeClick(d.id, e);
   };
 
@@ -336,9 +343,10 @@ function EndMarks() {
   const ends = useGraph((s) => s.ends);
   const nodes = useGraph((s) => s.nodes);
   const activeId = useGraph((s) => s.activeId);
+  const revealing = useGraph((s) => s.revealing);
   const focus = focusSets({ nodes, activeId });
   return Object.entries(ends).map(([id, b]) => (
-    <div key={id} className={`end-mark${focus && !focus.lit.has(id) ? " dim" : ""}`} data-replay-id={`settled-${id}`}
+    <div key={id} className={`end-mark${focus && !focus.lit.has(id) ? " dim" : ""}${revealing[id] ? " is-held" : ""}`} data-replay-id={`settled-${id}`}
       style={{ transform: `translate(${b.x}px, ${b.y}px)`, height: b.h }}>
       <i className="end-dot" aria-hidden="true" />这条线问透了
     </div>

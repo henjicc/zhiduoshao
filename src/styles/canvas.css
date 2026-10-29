@@ -55,6 +55,8 @@
 .node.dim.is-question { opacity: 0.8; }
 .node.dim:hover { opacity: 1; }
 @keyframes pop { from { opacity: 0; scale: 0.97; } to { opacity: 1; scale: 1; } }
+/* 所属回答还在放内容：延伸问题、输入框、收尾记号先占好位置但不显示；放完去掉 is-held，出现动画随之重新播放 */
+.node.is-held, .end-mark.is-held { visibility: hidden; animation: none; }
 
 .card {
   width: var(--card-w);
@@ -94,14 +96,26 @@
 .node.is-active .card { border-color: var(--line-hover); box-shadow: var(--shadow-2); }
 .node.is-selected .card { border-color: var(--accent-solid); box-shadow: 0 0 0 3px var(--accent-soft); }
 
-/* 问题行：问题退到卡片上方，排法与延伸问题（.pill）相同，方向标签在左、问题在右，点开后文字基本留在原处；
-   离自己的卡片 8px、离上一个节点 16px（ROW_GAP），一眼看出它属于下面这张卡片。卡片里第一眼看到的就是结论 */
-.card-head { display: flex; align-items: baseline; gap: 10px; padding: 0 12px; margin-bottom: 8px; }
-.card-ask { flex: 1; min-width: 0; }
-.card-q { margin: 0; font: 500 var(--fs-md)/1.55 var(--font-ui); color: var(--ink-2); transition: color var(--t-fast); }
+/* 问题行：问题退到卡片上方，排法与延伸问题（.pill）相同：问题靠左、方向标签在右，右侧留出延伸问题箭头的位置，
+   两者的问题和标签上下对齐，点开延伸问题后文字基本留在原处；离自己的卡片 8px、离上一个节点 16px（ROW_GAP），
+   一眼看出它属于下面这张卡片。问题只占一行，放不下的末尾渐隐，点一下在上方浮出完整问题，不推动布局 */
+.card-head { width: var(--card-w); padding: 0 36px 0 12px; margin-bottom: 8px; }
+.card-q-line { position: relative; display: flex; align-items: baseline; gap: 10px; }
+.card-q { flex: 1; min-width: 0; margin: 0; white-space: nowrap; overflow: hidden; font: 500 var(--fs-md)/1.55 var(--font-ui); color: var(--ink-2); transition: color var(--t-fast); }
+.card-q.is-clipped { cursor: pointer; mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
 .node:is(.is-active, :hover) .card-q { color: var(--ink); }
-/* 方向、拆开来看、综合、对比、出错，只在有信息时出现；与延伸问题的方向同宽，问题文字和下面一列的延伸问题对齐 */
-.card-tag { flex: none; min-width: 40px; white-space: nowrap; font: 500 var(--fs-sm)/1.5 var(--font-ui); color: var(--ink-3); }
+/* 完整问题：浮在问题行上，最后一行压在原来那一行上、往上长，盖住标签；文字与原来那一行左对齐 */
+.card-q-full {
+  position: absolute; left: -8px; right: -32px; bottom: -5px; z-index: 2; margin: 0; padding: 5px 8px;
+  font: 500 var(--fs-md)/1.55 var(--font-ui); color: var(--ink); cursor: pointer;
+  background: var(--surface); border: var(--hair) solid var(--line); border-radius: var(--r-sm); box-shadow: var(--shadow-2);
+  animation: enter var(--t-mid) var(--ease) both;
+}
+.card-q-full.is-closing { animation: leave var(--t-fast) var(--ease-in) both; }
+/* 浮出时压在相邻节点上面；所在节点不在当前路径上（变淡）时也完整显示，免得和下面的字叠在一起 */
+.node:has(.card-q-full) { z-index: 6; opacity: 1; }
+/* 方向、拆开来看、综合、对比、出错，只在有信息时出现 */
+.card-tag { flex: none; white-space: nowrap; font: 500 var(--fs-sm)/1.5 var(--font-ui); color: var(--ink-3); }
 .card-tag:is(.is-link, .is-compare) { color: var(--accent); }
 .card-tag.is-compare.is-offline { color: var(--ink-3); }
 .card-tag.is-error { color: var(--danger); }
@@ -252,7 +266,7 @@
 
 /* 延伸问题 */
 .pill {
-  display: flex; align-items: flex-start; gap: 10px;
+  display: flex; align-items: baseline; gap: 10px;
   width: var(--pill-w); padding: 9px 12px;
   border: var(--hair) solid var(--line); border-radius: var(--r-md);
   background: color-mix(in srgb, var(--surface) 70%, transparent);
@@ -260,14 +274,10 @@
   transition: border-color var(--t-fast), background var(--t-fast);
 }
 .pill:hover { background: var(--surface); border-color: var(--line-hover); }
-/* 推荐先问的那一条：边框深一档，问句下面多一行「先问」和理由 */
-.pill.is-next { border-color: var(--line-strong); }
-.pill.is-next:hover { border-color: var(--line-hover); }
-.pill-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.pill-dir { flex: none; width: 40px; white-space: nowrap; padding-top: 1px; font: 500 var(--fs-sm)/1.5 var(--font-ui); color: var(--ink-4); }
-.pill-q { font-size: var(--fs-md); line-height: 1.55; color: var(--ink-2); }
+.pill-q { flex: 1; min-width: 0; font-size: var(--fs-md); line-height: 1.55; color: var(--ink-2); }
 .pill:hover .pill-q { color: var(--ink); }
-.pill-go { margin-top: 2px; color: var(--ink-4); opacity: 0; transition: opacity var(--t-fast); }
+.pill-dir { flex: none; white-space: nowrap; font: 500 var(--fs-sm)/1.5 var(--font-ui); color: var(--ink-4); }
+.pill-go { flex: none; align-self: center; color: var(--ink-4); opacity: 0; transition: opacity var(--t-fast); }
 .pill:hover .pill-go, .pill:focus-visible .pill-go { opacity: 1; color: var(--accent); }
 
 /* 问透的收尾记号：连线末端的实心点压在线的端点上，旁边一行小字（Canvas.tsx 的 EndMarks） */

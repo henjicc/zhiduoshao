@@ -1,8 +1,9 @@
 import { ArrowRight, Brain, ChevronsRight, LoaderCircle, Minus, PanelRightOpen, Plus, RotateCw, Settings } from "lucide-react";
-import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { history } from "../history/store.ts";
 import { slotKey } from "./layout.ts";
-import { CiteNode, CiteText, Cites, NextWhy, SourceIcon, SourceStack } from "../components/common.tsx";
+import { CiteNode, CiteText, Cites, SourceIcon, SourceStack } from "../components/common.tsx";
+import { usePresence } from "../components/presence.ts";
 import { ScrollThumb } from "../components/ScrollThumb.tsx";
 import { ThinkingStream } from "../components/ThinkingStream.tsx";
 import { splitPhrases, usePhraseReveal, useStagger, type Phrase } from "../components/smoothText.ts";
@@ -113,6 +114,51 @@ function Ticker({ n }: { n: GNode }) {
   );
 }
 
+/** 一行放不下的问题：只显示一行、末尾渐隐，点一下在上方浮出完整问题（见 Canvas.tsx 里对问题行的点击） */
+function useClipped(el: RefObject<HTMLElement | null>, text: string) {
+  const [clipped, setClipped] = useState(false);
+  useLayoutEffect(() => {
+    const q = el.current!;
+    const check = () => setClipped(q.scrollWidth > q.clientWidth + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(q);
+    return () => ro.disconnect();
+  }, [el, text]);
+  return clipped;
+}
+
+function CardHead({ n }: { n: GNode }) {
+  const q = useRef<HTMLParagraphElement>(null);
+  const head = useRef<HTMLDivElement>(null);
+  const clipped = useClipped(q, n.q);
+  const open = useGraph((s) => s.headOpen === n.id) && clipped;
+  const full = usePresence(open, 150);
+  // 点别处或按 Esc 收起；点问题行本身由画布按“点击、不是拖动”切换
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => { if (!head.current?.contains(e.target as Node)) actions.toggleHead(null); };
+    // 只收起完整问题，不再往外传给工作区的 Esc（关侧栏、清多选）
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); actions.toggleHead(null); } };
+    document.addEventListener("pointerdown", away, true);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", away, true);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  return (
+    <div ref={head} className="card-head">
+      <div className="card-q-line">
+        <p ref={q} className={`card-q${clipped ? " is-clipped" : ""}`}>{n.q}</p>
+        <Tag n={n} />
+        {full.mounted && <p className={`card-q-full${full.closing ? " is-closing" : ""}`} aria-hidden="true">{n.q}</p>}
+      </div>
+      <CardImages n={n} />
+    </div>
+  );
+}
+
 function AnswerCard({ n, active }: { n: GNode; active: boolean }) {
   const search = useGraph((s) => s.search);
   const hidden = useGraph((s) => (n.collapsed ? countDescendants(s.nodes, n.id) : 0));
@@ -133,18 +179,34 @@ function AnswerCard({ n, active }: { n: GNode; active: boolean }) {
   const streaming = n.status === "streaming";
   // 回答完成且结论、要点都已放出：自动化脚本据此等「这个节点答完」
   const shown = n.status === "ready" && summary.done && (!showPoints || pointsShown >= n.points.length);
+  const card = useRef<HTMLDivElement>(null);
+
+  // 延伸问题、输入框和收尾记号等内容放完再出现：回答还在输出时冒出来会抢走注意力
+  const revealing = live && n.status !== "error" && !shown;
+  useEffect(() => {
+    actions.setRevealing(n.id, revealing);
+  }, [n.id, revealing]);
+  useEffect(() => () => actions.setRevealing(n.id, false), [n.id]);
+
+  // 上报节点尺寸。卡片高度在平滑伸缩时，按里层内容的最终高度上报（不超过最大高度），布局一次排到位，不跟着动画逐帧重排；
+  // 同时上报卡片上方问题行占的高度，连线对齐卡片。由持有这些元素的卡片自己量：卡片重新挂载时跟着重新量，
+  // 不会拿着已经移除的旧元素量出 0（问题行高度成了 0，布局和连线就对不上卡片）
+  useLayoutEffect(() => {
+    // 节点外层 div 的 ref 此时还没挂上（子组件的 layout effect 先于父元素绑定 ref），从卡片往上找
+    const c = card.current!, el = c.closest<HTMLElement>(".node")!, sh = shell.current!, b = body.current!;
+    const report = () => actions.setSize(n.id, el.offsetWidth, el.offsetHeight - sh.offsetHeight + Math.min(b.offsetHeight, shellMax(sh)), c.offsetTop);
+    report();
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    ro.observe(b);
+    return () => ro.disconnect();
+  }, [n.id, body]);
 
   return (
     <>
       {/* 问题与方向标签放在卡片上方，排法与延伸问题相同；卡片里只放回答，第一眼看到的是结论 */}
-      <div className="card-head">
-        <Tag n={n} />
-        <div className="card-ask">
-          <p className="card-q">{n.q}</p>
-          <CardImages n={n} />
-        </div>
-      </div>
-      <div className={`card${loading ? " is-loading" : ""}${streaming ? " is-streaming" : ""}${live ? " is-live" : ""}`} data-done={shown || undefined} tabIndex={0}>
+      <CardHead n={n} />
+      <div ref={card} className={`card${loading ? " is-loading" : ""}${streaming ? " is-streaming" : ""}${live ? " is-live" : ""}`} data-done={shown || undefined} tabIndex={0}>
         <div ref={shell} className={`card-shell${scroll ? " is-scroll" : ""}`} style={style}>
           <div className="card-body" ref={body}>
             {loading ? (
@@ -270,14 +332,12 @@ function countDescendants(nodes: Record<string, GNode>, id: string): number {
   return nodes[id].children.reduce((s, c) => s + 1 + countDescendants(nodes, c), 0);
 }
 
+/** 延伸问题：问题靠左、方向在右。推荐先问的那条（nextWhy）和其他条一样显示，is-next 只留给自动化脚本找它 */
 function QuestionPill({ n }: { n: GNode }) {
   return (
     <button type="button" className={`pill${n.nextWhy ? " is-next" : ""}`} onClick={(e) => { if (e.detail === 0) actions.ask(n.id); }}>
+      <span className="pill-q">{n.q}</span>
       <span className="pill-dir">{n.dir === "追问" ? <ChevronsRight size={12} /> : n.dir}</span>
-      <span className="pill-body">
-        <span className="pill-q">{n.q}</span>
-        {n.nextWhy && <NextWhy why={n.nextWhy} replayId={`next-${n.id}`} />}
-      </span>
       <ArrowRight className="pill-go" size={14} strokeWidth={1.6} />
     </button>
   );
@@ -290,34 +350,36 @@ export const NodeView = memo(function NodeView({ id }: { id: string }) {
   const active = useGraph((s) => s.activeId === id);
   const selected = useGraph((s) => s.selected.includes(id));
   const dim = useGraph((s) => isDim(s, id));
+  const held = useGraph((s) => isHeld(s, id));
   const ref = useRef<HTMLDivElement>(null);
-  const kind = n?.kind;
+  const question = n?.kind === "question";
 
-  // 延伸问题点开后就地变成回答卡片：按新的内容重新取卡片各层
+  // 延伸问题量整个节点；回答卡片由 AnswerCard 自己量
   useLayoutEffect(() => {
+    if (!question) return;
     const el = ref.current!;
-    // 卡片高度在平滑伸缩时，按里层内容的最终高度上报（不超过最大高度），布局一次排到位，不跟着动画逐帧重排；
-    // 同时上报卡片上方问题行占的高度，连线对齐卡片
-    const card = el.querySelector<HTMLElement>(".card");
-    const shell = el.querySelector<HTMLElement>(".card-shell");
-    const body = el.querySelector<HTMLElement>(".card-body");
-    const report = () => actions.setSize(id, el.offsetWidth, shell && body ? el.offsetHeight - shell.offsetHeight + Math.min(body.offsetHeight, shellMax(shell)) : el.offsetHeight, card?.offsetTop ?? 0);
+    const report = () => actions.setSize(id, el.offsetWidth, el.offsetHeight);
     report();
     const ro = new ResizeObserver(report);
     ro.observe(el);
-    if (body) ro.observe(body);
     return () => ro.disconnect();
-  }, [id, kind]);
+  }, [id, question]);
 
   if (!n || !box) return null;
-  const cls = ["node", measured && "is-placed", active && "is-active", selected && "is-selected", dim && "dim", n.kind === "question" && "is-question", !n.parent && !n.links.length && "is-root"]
+  const cls = ["node", measured && "is-placed", active && "is-active", selected && "is-selected", dim && "dim", question && "is-question", held && "is-held", !n.parent && !n.links.length && "is-root"]
     .filter(Boolean).join(" ");
   return (
     <div ref={ref} className={cls} data-id={id} data-replay-id={`node-${id}`} style={{ transform: `translate(${box.x}px, ${box.y}px)` }}>
-      {n.kind === "question" ? <QuestionPill n={n} /> : <CiteNode.Provider value={id}><AnswerCard n={n} active={active} /></CiteNode.Provider>}
+      {question ? <QuestionPill n={n} /> : <CiteNode.Provider value={id}><AnswerCard n={n} active={active} /></CiteNode.Provider>}
     </div>
   );
 });
+
+/** 延伸问题在所属回答放完内容之前先占位、不显示（AnswerCard 的 revealing） */
+export function isHeld(s: { nodes: Record<string, GNode>; revealing: Record<string, true> }, id: string) {
+  const n = s.nodes[id];
+  return !!n && n.kind === "question" && !!n.parent && !!s.revealing[n.parent];
+}
 
 /** 当前路径之外的节点变淡：路径 = 激活节点的祖先链、来源节点及其直接子节点 */
 export function focusSets(s: { nodes: Record<string, GNode>; activeId: string | null }) {
@@ -344,6 +406,7 @@ function isDim(s: { nodes: Record<string, GNode>; activeId: string | null; selec
 export function AskSlot() {
   const slot = useGraph((s) => s.slot);
   const busy = useGraph((s) => s.slotBusy);
+  const held = useGraph((s) => !!s.slot && !!s.revealing[s.slot.parent]);
   const [text, setText] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const parent = slot?.parent;
@@ -366,7 +429,7 @@ export function AskSlot() {
     if (actions.command(slot.parent, text)) setText("");
   };
   return (
-    <div ref={ref} className="node is-slot is-placed" data-act="slot" style={{ transform: `translate(${slot.box.x}px, ${slot.box.y}px)` }}>
+    <div ref={ref} className={`node is-slot is-placed${held ? " is-held" : ""}`} data-act="slot" style={{ transform: `translate(${slot.box.x}px, ${slot.box.y}px)` }}>
       <form className={`slot${busy ? " is-busy" : ""}`} onSubmit={(e) => { e.preventDefault(); submit(); }}>
         {busy ? <LoaderCircle className="spin slot-icon" size={13} strokeWidth={1.8} /> : <Plus className="slot-icon" size={13} strokeWidth={1.8} />}
         <input
