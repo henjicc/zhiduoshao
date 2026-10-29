@@ -100,10 +100,11 @@
    按自己的内边距同样是问题靠左、标签靠右，两者各按自己的容器对齐，不靠固定偏移去凑。离自己的卡片 8px、
    离上一个节点 16px（ROW_GAP），一眼看出它属于下面这张卡片。问题只占一行，放不下的末尾渐隐，点一下在上方浮出完整问题，不推动布局 */
 .card-head { width: var(--card-w); margin-bottom: 8px; }
-.card-q-line { position: relative; display: flex; align-items: baseline; gap: 10px; }
-.card-q { flex: 1; min-width: 0; margin: 0; white-space: nowrap; overflow: hidden; font: 500 var(--fs-md)/1.55 var(--font-ui); color: var(--ink-2); transition: color var(--t-fast); }
+/* 左右各收进 6px：卡片是 14px 圆角，文字贴着卡片的直边对齐时，看上去会比圆角往外探出一截，收进一点视觉上才对齐（用户要求） */
+.card-q-line { position: relative; display: flex; align-items: baseline; gap: 10px; margin: 0 6px; }
+/* 每张卡片的问题行同一种样式，不随当前节点、悬停变色（用户要求各节点一致） */
+.card-q { flex: 1; min-width: 0; margin: 0; white-space: nowrap; overflow: hidden; font: 500 var(--fs-md)/1.55 var(--font-ui); color: var(--ink); }
 .card-q.is-clipped { cursor: pointer; mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
-.node:is(.is-active, :hover) .card-q { color: var(--ink); }
 /* 完整问题：浮在问题行上，最后一行压在原来那一行上、往上长，盖住标签；文字与原来那一行左对齐 */
 .card-q-full {
   position: absolute; left: -8px; right: -8px; bottom: -5px; z-index: 2; margin: 0; padding: 5px 8px;
