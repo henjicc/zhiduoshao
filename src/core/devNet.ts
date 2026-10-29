@@ -4,7 +4,7 @@ import type { HttpFetch } from "./providers/types.ts";
 
 // 开发时浏览器里的网络（只给开发与演示录制用，不对用户发布；桌面应用与发布版都不经过这里）：
 // - 腾讯接口不允许浏览器跨域，请求交给 Vite 开发服务器转发（vite.config.ts 的 /__zds/net）；
-// - 地址带 ?capture=名字 时把每次外部调用的原始返回存成数据包，?replay=名字 时从数据包放回、不联网。
+// - 地址带 ?capture=名字 时把每次外部调用的原始返回存成数据包（同名已存在时接着记），?replay=名字 时从数据包放回、不联网。
 //   数据包经开发服务器读写（/__zds/pack/名字），格式见 pack.ts。
 
 /** 当前的数据包模式；地址参数写错时直接报错，不悄悄按普通模式运行 */
@@ -59,15 +59,38 @@ function capture(name: string, base: HttpFetch): HttpFetch {
   /** 还没结束的调用（包括还没收到响应头的） */
   const open = new Set<Promise<unknown>>();
   const t0 = performance.now();
-  let saving: Promise<void> = Promise.resolve();
   let dirty = false;
   let saveError: unknown = null;
+  /** 接着已有数据包记时，新调用的发出时刻排在已有调用之后 */
+  let atShift = 0;
+  let resumeFailed = false;
+
+  // 同名数据包已存在（页面刷新、热更新整页重载、接着上次采集）时接在后面记，不覆盖已经录下的调用；
+  // 要从头重采就先删掉文件或换个名字
+  const resumed = fetch(packUrl(name), { method: "GET" }).then(async (res) => {
+    if (res.status === 404) return;
+    if (!res.ok) throw new Error(`读取已有数据包失败（HTTP ${res.status}）`);
+    const old = (await res.json()) as Pack;
+    if (old.format !== PACK_FORMAT || old.version > PACK_VERSION) throw new Error(`「${name}」已存在，但不是这个版本能续写的数据包`);
+    atShift = Math.max(0, ...old.calls.map((c) => c.at + (c.ms ?? c.errorMs ?? 0))) + 1000;
+    for (const c of pack.calls) c.at += atShift;
+    pack.calls.unshift(...old.calls);
+    pack.createdAt = old.createdAt;
+    console.info(`[数据包] 「${name}」已有 ${old.calls.length} 次调用，接着记`);
+  }).catch((err) => {
+    resumeFailed = true;
+    saveError = err;
+    console.error("[数据包] 读取已有数据包失败", err);
+    showProblem(`数据包「${name}」已存在但读不出来，这次采集不会写入，详见控制台。`);
+  });
+  // 读完已有内容之前不写，免得先把只有新调用的半份写回去
+  let saving: Promise<void> = resumed;
 
   // 每次调用结束都整份写一遍；写入串行，写的时候又有变化就再写一次
   const save = () => {
     dirty = true;
     saving = saving.then(async () => {
-      if (!dirty) return;
+      if (!dirty || resumeFailed) return;
       dirty = false;
       const res = await fetch(packUrl(name), { method: "PUT", headers: { "Content-Type": "application/json" }, body: scrubSecrets(JSON.stringify(pack), secrets) });
       if (!res.ok) throw new Error(`数据包写入失败（HTTP ${res.status}）：${await res.text()}`);
@@ -109,7 +132,7 @@ function capture(name: string, base: HttpFetch): HttpFetch {
 
   const fetchFn: HttpFetch = (url, init) => {
     const started = performance.now();
-    const call: PackCall = { at: Math.round(started - t0), method: (init.method ?? "GET").toUpperCase(), url, headers: safeHeaders(init.headers), body: packBody(init.body) };
+    const call: PackCall = { at: Math.round(started - t0) + atShift, method: (init.method ?? "GET").toUpperCase(), url, headers: safeHeaders(init.headers), body: packBody(init.body) };
     for (const s of secretsOf(init.headers)) secrets.add(s);
     pack.calls.push(call);
     const sent = base(url, init);
