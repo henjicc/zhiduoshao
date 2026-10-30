@@ -1,17 +1,18 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { isPackName, PACK_FORMAT, PACK_VERSION, requestKey, type Pack, type PackCall } from "./src/core/pack.ts";
 
 // 痕迹AI 的录制探针包尚未发布到 npm，暂时直接引用本机痕迹仓库里的源码（tsconfig.json 的 paths 同步）；发布后改为 npm 依赖并删掉这里
 const probeDir = fileURLToPath(new URL("../Henji-AI/packages/web-replay-probe/src", import.meta.url));
 
-/** 演示用的数据包目录（src/core/pack.ts） */
-const PACK_DIR = ".packs";
+/** 演示用数据包（src/core/pack.ts）的目录：不入库的 .env.local 里的 ZDS_PACK_DIR，没设时为项目里不入库的 .packs/ */
+const root = fileURLToPath(new URL(".", import.meta.url));
+const PACK_DIR = resolve(root, loadEnv("development", root, "ZDS_").ZDS_PACK_DIR || ".packs");
 
 // 同时服务于浏览器开发（示例模式）与 Tauri 桌面应用（tauri dev 会连接这个端口）
 export default defineConfig({
