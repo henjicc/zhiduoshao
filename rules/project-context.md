@@ -7,7 +7,7 @@ template_state: ready
 ## 目标与边界
 
 - 产品：「知多少」，一张会生长的知识地图。用户输入问题，先得到有来源、有时效的答案；系统再从答案延伸出具体问题（主动替用户提问），用户点开问题继续得到答案，逐层展开成画布上的知识树。
-- 产品形态：Tauri 2 桌面应用（Windows 安装包分发），没有任何后端服务。用户在应用「设置」里填写自己的 API Key，应用在本机直接请求腾讯接口。
+- 产品形态：Tauri 2 桌面应用（Windows 安装包与 macOS dmg 分发），没有任何后端服务。用户在应用「设置」里填写自己的 API Key，应用在本机直接请求腾讯接口。
   - 不做纯网页版的原因：元宝搜索与 TokenHub 均不允许浏览器跨域调用（2026-10 实测预检分别返回 403 / 405），网页无法直连；用户已明确不要服务器或转发。
   - 唯一例外是开发工具（2026-10-29 加）：开发时（`npm run dev`）浏览器里的请求由 Vite 开发服务器转发，并可采集、重放数据包（见「运行与验证」的演示模式）。它只存在于开发服务器上、只给开发与演示录制用，不对用户发布；发布版和桌面应用（含 `app:dev`）的请求路径不变，不能借它做网页版或给用户提供转发。
 - 接入范围：只接入腾讯：大模型为混元（TokenHub 按量 API Key），搜索为元宝搜索（服务 API Key）。这是腾讯项目的约束。
@@ -117,6 +117,7 @@ template_state: ready
   - `npm run app:dev`：桌面应用开发模式，会自行启动 Vite，因此不能与 `npm run dev` 同时运行。用真实接口测试时，先在 PowerShell 里执行 `$env:VITE_PROVIDERS = 'real'` 再运行；
   - `npm run app:build`：生成 Windows NSIS 安装包，位于 `src-tauri/target/release/bundle/nsis/`；
   - `npm run typecheck`、`npm test`（`src/**/*.test.ts`，`node:test`）、`npm run build`。
+- 发布：GitHub 仓库 `henjicc/zhiduoshao`，[`.github/workflows/release.yml`](../.github/workflows/release.yml) 在推送 `v*` 标签或手动运行时构建 Windows NSIS 安装包与 macOS 通用版 dmg（临时签名、未公证，Windows 也没有代码签名），上传到 `v<tauri.conf.json 的 version>` 的草稿 Release，两个平台都成功后再手动发布。CI 按 `PROBE_REF` 固定的提交取痕迹仓库（公开）里的探针源码放到 `../Henji-AI`，探针更新后同步改它；发新版前先改 `tauri.conf.json`、`Cargo.toml` 与 `package.json` 的版本号。
 - 依赖：Node、Rust（stable）与 MSVC 构建工具、WebView2（Windows 10/11 自带）。首次 Rust 编译需数分钟；修改 `src-tauri/` 后 `app:dev` 会自动重新编译。
 - 配置：`.env` 只有可选的 `VITE_PROVIDERS=mock`（见 `.env.example`）；进程环境变量优先于 `.env`，桌面开发时可用 `VITE_PROVIDERS=real npm run app:dev` 走真实接口。
 - 最低验证：`npm run typecheck` 与 `npm test`。界面改动在浏览器示例模式走通「首页提问 → 加载 → 答案 → 延伸问题 → 多选指令 → 综合节点 → 详情抽屉 → 总结面板 → 设置 → 回首页看最近 → 历史面板搜索、打开、删除与撤销」。

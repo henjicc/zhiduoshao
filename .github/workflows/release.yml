@@ -1,0 +1,70 @@
+name: 构建发布
+
+# 推送 v* 标签或手动运行：构建 Windows 安装包与 macOS 通用版 dmg，上传到同名的草稿 Release，确认后再发布。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# 痕迹AI 录制探针还没发布到 npm，构建时取痕迹仓库里的源码，放在本仓库旁边（vite.config.ts 与 tsconfig.json 按 ../Henji-AI 引用）。
+# 固定到一个提交，探针更新后改这里。
+env:
+  PROBE_REF: 564ade5c7d9560aabe52a0d4540b596e730e1fdd
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ""
+          - platform: macos-latest
+            args: --target universal-apple-darwin --bundles dmg
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: zhiduoshao
+
+      - uses: actions/checkout@v4
+        with:
+          repository: henjicc/Henji-AI
+          ref: ${{ env.PROBE_REF }}
+          path: Henji-AI
+          sparse-checkout: packages/web-replay-probe
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: zhiduoshao/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: zhiduoshao/src-tauri -> target
+
+      - run: npm ci
+        working-directory: zhiduoshao
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 没有 Apple 开发者证书，用临时签名：Apple 芯片的 Mac 上不会提示“已损坏”，首次打开仍需在“隐私与安全性”里放行
+          APPLE_SIGNING_IDENTITY: "-"
+        with:
+          projectPath: zhiduoshao
+          tagName: v__VERSION__
+          releaseName: 知多少 v__VERSION__
+          releaseBody: |
+            - Windows：下载 `.exe` 安装包。安装包没有代码签名，SmartScreen 提示时点“更多信息 → 仍要运行”。
+            - macOS：下载 `.dmg`（Apple 芯片与 Intel 通用）。没有经过公证，首次打开被拦时到“系统设置 → 隐私与安全性”点“仍要打开”。
+            - 使用前在应用「设置」里填写自己的腾讯 TokenHub 与元宝搜索 API Key。
+          releaseDraft: true
+          args: ${{ matrix.args }}
