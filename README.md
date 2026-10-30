@@ -23,10 +23,10 @@
 | Windows 10 / 11（x64） | `zhiduoshao_<版本>_windows_x64-setup.exe` | 需要 WebView2，系统没有时安装程序会自动下载 |
 | macOS（Apple 芯片与 Intel） | `zhiduoshao_<版本>_darwin_universal.dmg` | 同一个安装包两种芯片都能用 |
 
-使用前还需要两个腾讯云 API Key，二者都按用量收费：
+使用前还需要两个腾讯云 API Key：
 
-- **TokenHub 按量 API Key**（大模型）：[TokenHub 控制台](https://console.cloud.tencent.com/tokenhub/apikey)。Coding Plan、Token Plan 套餐密钥不能使用。
-- **元宝搜索 API Key**（联网检索）：[元宝搜索控制台](https://console.cloud.tencent.com/wsapi/index?tab=apikey)。
+- **TokenHub 按量 API Key**（大模型）：按用量收费，在 [TokenHub 控制台](https://console.cloud.tencent.com/tokenhub/apikey) 创建。Coding Plan、Token Plan 套餐密钥不能使用。
+- **元宝搜索 API Key**（联网检索）：在 [元宝搜索控制台](https://console.cloud.tencent.com/wsapi/index?tab=apikey) 创建。每月有 2000 次免费额度；在控制台填写邀请码 `4PX9W49W`，可额外获得 4000 次。
 
 ## 安装
 

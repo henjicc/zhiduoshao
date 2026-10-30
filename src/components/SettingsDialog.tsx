@@ -110,6 +110,7 @@ function Dialog({ closing }: { closing: boolean }) {
                 value={searchKey}
                 onChange={(v) => update({ searchKey: v })}
                 link={LINKS.search}
+                note={<>每月有 2000 次免费额度；在控制台填写邀请码 <code className="field-code">4PX9W49W</code>，可额外获得 4000 次。</>}
                 test={canTest ? () => testYuanbao({ apiKey: searchKey, fetch: tracedFetch(httpFetch, "test-search") }) : undefined}
               />
             </section>
@@ -223,6 +224,7 @@ function KeyField(props: {
   onChange: (v: string) => void;
   link: string;
   error?: string;
+  note?: React.ReactNode;
   /** 成功时可返回一句补充说明（如搜索服务版本） */
   test?: () => Promise<string | void>;
   inputRef?: React.Ref<HTMLInputElement>;
@@ -274,6 +276,7 @@ function KeyField(props: {
         </button>
       </div>
       {props.error && <p className="field-error" id={`${props.id}-msg`}>{props.error}</p>}
+      {props.note && <p className="field-note">{props.note}</p>}
       <div className="field-actions">
         {props.test && (
           <button type="button" className="btn btn-sm" onClick={runTest} disabled={!props.value.trim() || check.state === "testing"}>

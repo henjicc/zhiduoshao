@@ -271,6 +271,8 @@ button.source { width: 100%; text-align: left; }
 }
 .field-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 26px; }
 .field-error { margin: 0; font-size: var(--fs-sm); color: var(--danger); }
+.field-note { margin: 0; font-size: var(--fs-sm); line-height: 1.65; color: var(--ink-2); }
+.field-code { font-family: var(--font-mono); color: var(--ink); user-select: all; }
 .field-ok { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-sm); color: var(--ink-2); }
 .field-ok .lucide { color: var(--accent); }
 .field-link {
