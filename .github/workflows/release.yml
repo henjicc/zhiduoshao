@@ -62,6 +62,8 @@ jobs:
           projectPath: zhiduoshao
           tagName: v__VERSION__
           releaseName: 知多少 v__VERSION__
+          # GitHub 会去掉附件名里的中文，产品名「知多少」留不下来，附件名改用拼音
+          assetNamePattern: zhiduoshao_[version]_[platform]_[arch][setup][ext]
           releaseBody: |
             - Windows：下载 `.exe` 安装包。安装包没有代码签名，SmartScreen 提示时点“更多信息 → 仍要运行”。
             - macOS：下载 `.dmg`（Apple 芯片与 Intel 通用）。没有经过公证，首次打开被拦时到“系统设置 → 隐私与安全性”点“仍要打开”。
